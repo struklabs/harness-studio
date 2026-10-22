@@ -5324,7 +5324,12 @@ print("req lora", w.image_request(json.dumps({{"prompt": "x", "lora": lora, "lor
 outside = os.path.join(tempfile.mkdtemp(), "out.safetensors")
 open(outside, "wb").write(b"x")
 link = os.path.join(roots[0], "link.safetensors")
-os.symlink(outside, link)
+try:
+    os.symlink(outside, link)
+except OSError:
+    # Windows without Developer Mode cannot create symlinks; the outside path itself is
+    # still refused, so the case keeps checking the folder rule.
+    link = outside
 for label, raw, rts in [("req lora no dirs", {{"prompt": "x", "lora": lora}}, ()),
                         ("req lora outside", {{"prompt": "x", "lora": outside}}, roots),
                         ("req lora link out", {{"prompt": "x", "lora": link}}, roots),

@@ -1972,12 +1972,15 @@ Content-Type: image/png"#,
         // A request's LoRA file (already resolved by `lora_of`) goes to the worker with its
         // scale; a Hugging Face repository id does not (mflux reads local files only).
         let mut with_lora = plan(&json!({"prompt": "x"})).unwrap().body;
-        with_lora["lora"] = json!("/lib/style.safetensors");
+        // An absolute path on every platform (`/lib/...` is not absolute on Windows).
+        let lora_file = std::env::temp_dir().join("style.safetensors");
+        let lora_file = lora_file.to_string_lossy().into_owned();
+        with_lora["lora"] = json!(lora_file);
         with_lora["lora_scale"] = json!(0.8);
         let body = mflux_body(&with_lora, None, false).unwrap();
         assert_eq!(
             (body["lora"].clone(), body["lora_scale"].clone()),
-            (json!("/lib/style.safetensors"), json!(0.8))
+            (json!(lora_file), json!(0.8))
         );
         with_lora["lora"] = json!("owner/name");
         assert_eq!(
