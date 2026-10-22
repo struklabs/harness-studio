@@ -1575,6 +1575,46 @@ class StopTrimmer:
         return out
 
 
+_CALL_MARKERS = ("<tool_call>", "[TOOL_CALLS]", "<|python_tag|>")
+
+
+class ToolCallGate:
+    """Streams an answer that was offered tools up to the point a tool call could start: the first
+    call marker (the shapes parse_tool_calls reads) or an answer that opens with JSON. `feed` returns
+    the text that is safe to send now (a tail that could still become a marker is held back);
+    everything from a marker on is kept for parsing at the end. `sent` is what was sent."""
+
+    def __init__(self):
+        self.text = ""
+        self.sent = 0
+        self.closed = False
+
+    def feed(self, piece):
+        self.text += piece
+        if self.closed:
+            return ""
+        head = self.text.lstrip()
+        if not head:
+            return ""
+        if self.sent == 0 and head[0] in "{[":
+            # The whole answer may be a bare JSON call: nothing is sent until it ends.
+            self.closed = True
+            return ""
+        cut = min((i for i in (self.text.find(m, self.sent) for m in _CALL_MARKERS) if i >= 0), default=-1)
+        if cut >= 0:
+            self.closed = True
+            end = cut
+        else:
+            end = len(self.text)
+            for m in _CALL_MARKERS:
+                for k in range(min(len(m) - 1, len(self.text) - self.sent), 0, -1):
+                    if self.text.endswith(m[:k]):
+                        end = min(end, len(self.text) - k)
+                        break
+        out, self.sent = self.text[self.sent:end], max(self.sent, end)
+        return out
+
+
 def sse(payload):
     """One server-sent event; `payload` None is OpenAI's end marker."""
     if payload is None:
@@ -1878,8 +1918,8 @@ def run_chat(model, body):
 
 def stream_chat(model, body):
     """The events of a streamed answer: a generator of SSE bytes that holds the model while it
-    runs. With tools offered the answer is read to its end first (a call is only known then) and
-    sent as one delta."""
+    runs. With tools offered the text is streamed up to where a call could start (ToolCallGate);
+    the rest is read to its end, since a call is only known then."""
     from transformers import TextIteratorStreamer
 
     runner = model.pipe
@@ -1906,6 +1946,7 @@ def stream_chat(model, body):
             thread = threading.Thread(target=work, name="generate", daemon=True)
             thread.start()
             trimmer = StopTrimmer(p["stop"])
+            gate = ToolCallGate() if tools else None
             full = []
             try:
                 yield sse(chunk(cid, created, alias, {"role": "assistant", "content": ""}))
@@ -1913,16 +1954,18 @@ def stream_chat(model, body):
                     out = trimmer.feed(piece)
                     if out:
                         full.append(out)
-                        if not tools:
-                            yield sse(chunk(cid, created, alias, {"content": out}))
+                        send = gate.feed(out) if gate else out
+                        if send:
+                            yield sse(chunk(cid, created, alias, {"content": send}))
                     if trimmer.done:
                         cancel.set()
                         break
                 tail = trimmer.flush()
                 if tail:
                     full.append(tail)
-                    if not tools:
-                        yield sse(chunk(cid, created, alias, {"content": tail}))
+                    send = gate.feed(tail) if gate else tail
+                    if send:
+                        yield sse(chunk(cid, created, alias, {"content": send}))
                 thread.join()
                 if "error" in result:
                     yield sse({"error": {"message": result["error"], "type": "server_error", "code": None}})
@@ -1933,12 +1976,17 @@ def stream_chat(model, body):
                 text = "".join(full)
                 if tools:
                     content, calls = parse_tool_calls(text, names)
+                    sent = text[: gate.sent].lstrip()
                     if calls:
+                        # Text the call left over beyond what was already streamed.
+                        rest = content[len(sent):] if content.startswith(sent) else ""
+                        if rest.strip():
+                            yield sse(chunk(cid, created, alias, {"content": rest}))
                         indexed = [dict(c, index=i) for i, c in enumerate(calls)]
                         yield sse(chunk(cid, created, alias, {"tool_calls": indexed}))
                         finish = "tool_calls"
-                    elif text:
-                        yield sse(chunk(cid, created, alias, {"content": text}))
+                    elif text[gate.sent :]:
+                        yield sse(chunk(cid, created, alias, {"content": text[gate.sent :]}))
                 wav = runner.speech_wav() if media["speech"] and not trimmer.done else None
                 if wav:
                     yield sse(chunk(cid, created, alias, {"audio": audio_message(wav, text)}))

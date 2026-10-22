@@ -66,6 +66,25 @@ assert out == "no stopped here ST" and not t.done, out
 t = w.StopTrimmer([])
 assert t.feed("abc") == "abc" and t.flush() == ""
 
+# --- streaming with tools offered ---------------------------------------------------------------
+# Text streams until a call could start; a tail that may become a marker waits.
+g = w.ToolCallGate()
+out = [g.feed(p) for p in ["Let me ", "check.\n<to", "ol_call>\n{\"name\": \"add\"}", "\n</tool_call>"]]
+assert out == ["Let me ", "check.\n", "", ""], out
+assert g.text[g.sent:].startswith("<tool_call>") and g.closed
+# A plain answer streams whole, except a held tail that turned out not to be a marker.
+g = w.ToolCallGate()
+out = "".join(g.feed(p) for p in ["Paris is ", "the capital. <", "b>bold</b>"])
+assert out == "Paris is the capital. <b>bold</b>" and not g.closed, out
+g = w.ToolCallGate()
+assert g.feed("A list [") == "A list " and g.feed("1, 2]") == "[1, 2]"
+# An answer that opens with JSON may be a bare call: nothing is sent before it ends.
+g = w.ToolCallGate()
+assert g.feed("  ") == "" and g.feed('{"name": "add"') == "" and g.feed("}") == "" and g.sent == 0
+for marker in ("[TOOL_CALLS]", "<|python_tag|>"):
+    g = w.ToolCallGate()
+    assert g.feed("Sure. " + marker + '{"name": "add"}') == "Sure. " and g.closed
+
 # --- request parameters -------------------------------------------------------------------------
 p = w.chat_params({"max_tokens": 50, "temperature": 0.2, "stop": "x", "stream": True,
                    "stream_options": {"include_usage": True}, "seed": 7})
