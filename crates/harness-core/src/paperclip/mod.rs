@@ -345,7 +345,7 @@ impl PaperclipClient {
             // The key header must never follow a redirect to another host.
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .map_err(|e| crate::http_error::transport(&e, &base))?;
+            .map_err(|e| transport(&e, &base))?;
         Ok(Self {
             base,
             key: key
@@ -394,10 +394,7 @@ impl PaperclipClient {
         if let Some(key) = &self.key {
             req = req.bearer_auth(key);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| crate::http_error::transport(&e, &url))?;
+        let resp = req.send().await.map_err(|e| transport(&e, &url))?;
         let status = resp.status();
         if !status.is_success() {
             return Err(status_error(status.as_u16()));
@@ -414,10 +411,7 @@ impl PaperclipClient {
         if let Some(key) = &self.key {
             req = req.bearer_auth(key);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| crate::http_error::transport(&e, &url))?;
+        let resp = req.send().await.map_err(|e| transport(&e, &url))?;
         let code = resp.status().as_u16();
         let v = resp.json::<Value>().await.ok();
         let Some(status) = v
@@ -699,6 +693,17 @@ fn clip(text: &str, max: usize) -> String {
         Some((i, _)) => format!("{}...", &text[..i]),
         None => text.to_string(),
     }
+}
+
+/// A transport error. Paperclip runs outside Harness, so a refused local connection must not
+/// point the user at the Servers page as the shared `http.connect_failed_local` text does.
+fn transport(error: &reqwest::Error, url: &str) -> String {
+    let message = crate::http_error::transport(error, url);
+    if crate::error_key::parse(&message).is_some_and(|(key, _)| key == "http.connect_failed_local")
+    {
+        return err("paperclip.unreachable").with("url", url).into();
+    }
+    message
 }
 
 fn status_error(status: u16) -> String {

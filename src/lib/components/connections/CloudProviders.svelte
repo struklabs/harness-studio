@@ -33,7 +33,7 @@
     latency_ms: number | null;
     quota: { limit: number | null; usage: number | null; remaining: number | null } | null;
   }
-  interface Probe { state: Provider['state']; latency_ms: number | null; model_count: number; models: CloudModel[]; error: string | null }
+  interface Probe { state: Provider['state']; latency_ms: number | null; model_count: number; models: Omit<CloudModel, 'id'>[]; error: string | null }
   interface ModelTest { ok: boolean; latency_ms: number; tool_called: boolean; model: string | null; detail: string }
 
   const KINDS: { kind: Kind; label: string; url: string }[] = [
@@ -384,8 +384,8 @@
             <p class="text-success">{t('cloud.probe_ok', { count: probe.model_count, ms: probe.latency_ms ?? 0 })}</p>
             <p class="text-muted-foreground">{t('cloud.probe_models')}</p>
             <ul class="flex flex-col gap-0.5">
-              {#each probe.models as m (m.model ?? m.id)}
-                <li class="flex flex-wrap gap-x-3"><span class="font-mono">{m.model ?? m.id}</span>
+              {#each probe.models as m (m.model)}
+                <li class="flex flex-wrap gap-x-3"><span class="font-mono">{m.model}</span>
                   {#if m.tools}<span class="text-muted-foreground">{t('cloud.tools')}</span>{/if}
                   {#if m.vision}<span class="text-muted-foreground">{t('cloud.vision')}</span>{/if}
                   {#if m.reasoning}<span class="text-muted-foreground">{t('cloud.reasoning')}</span>{/if}

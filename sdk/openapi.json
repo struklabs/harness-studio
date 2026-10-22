@@ -28654,6 +28654,26 @@
         ],
         "description": "Body of `POST /cloud/test`: provider settings to check before they are saved."
       },
+      "ProbeModel": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CloudModel"
+          },
+          {
+            "type": "object",
+            "required": [
+              "model"
+            ],
+            "properties": {
+              "model": {
+                "type": "string",
+                "description": "The provider's model id (`CloudModel` does not serialize its own)."
+              }
+            }
+          }
+        ],
+        "description": "A model a connection check found: the provider's model id and what is known about it."
+      },
       "ProbeResult": {
         "type": "object",
         "description": "What a connection check found, before anything is saved.",
@@ -28681,7 +28701,7 @@
           "models": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CloudModel"
+              "$ref": "#/components/schemas/ProbeModel"
             },
             "description": "Chat models first, a few at most: enough to see the key works."
           },

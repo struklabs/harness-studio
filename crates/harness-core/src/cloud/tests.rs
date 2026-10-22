@@ -344,3 +344,20 @@ fn costs_use_the_users_price_over_the_providers() {
     }
     .valid());
 }
+
+#[test]
+fn a_connection_check_names_each_model_it_found() {
+    // `CloudModel` leaves its id out; without `model` the add dialog had no name or key per row.
+    let found = ProbeModel {
+        model: "gpt-x".into(),
+        info: CloudModel {
+            id: "gpt-x".into(),
+            tools: Some(true),
+            ..Default::default()
+        },
+    };
+    let json = serde_json::to_value(&found).unwrap();
+    assert_eq!(json["model"], "gpt-x");
+    assert_eq!(json["tools"], true);
+    assert!(json.get("id").is_none());
+}

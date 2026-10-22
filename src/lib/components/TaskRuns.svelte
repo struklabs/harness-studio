@@ -2,6 +2,7 @@
   // Task runs of a project: agent tasks and analysis sessions that can be drafted, stepped,
   // rewound, stopped, resumed after a restart and moved to another device as a bundle.
   import { onMount } from 'svelte';
+  import { invoke } from '#lib/ipc.js';
   import { t } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -63,7 +64,14 @@
     try {
       const res = await fetch(`${app.inferenceUrl.replace(/\/$/, '')}/models`, { headers: app.inferenceHeaders() });
       const body = await res.json() as { data?: { id: string }[] };
-      gatewayModels = (body.data ?? []).map((m) => m.id).sort();
+      // Local models that cannot chat (embedding, rerank, speech, image) are not task models.
+      const [defs, chat] = await Promise.all([
+        invoke<{ alias: string }[]>('list_model_definitions').catch(() => []),
+        invoke<{ alias: string }[]>('list_agent_choices').catch(() => null),
+      ]);
+      const chatAliases = new Set((chat ?? defs).map((m) => m.alias.toLowerCase()));
+      const nonChat = new Set(defs.map((d) => d.alias.toLowerCase()).filter((a) => !chatAliases.has(a)));
+      gatewayModels = (body.data ?? []).map((m) => m.id).filter((id) => !nonChat.has(id.toLowerCase())).sort();
     } catch { gatewayModels = []; }
   }
 
