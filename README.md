@@ -169,7 +169,7 @@ There are good tools already, and Harness Studio does not replace all of them fo
 - **Built for several models and several users.** Concurrency, model switching through one endpoint, per-token limits, and per-client analytics.
 - **Observability built in.** Request analytics, a trace view, Prometheus, and OpenTelemetry.
 - **One core, many doors.** The app, the CLI, the Control API, and MCP all use the same Rust services.
-- **Honest limits.** Harness Studio is an early public release (0.1.2) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See the [feature overview](docs/en/FEATURES.md).
+- **Honest limits.** Harness Studio is an early public release (0.2.0) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See the [feature overview](docs/en/FEATURES.md).
 
 ## Privacy
 
@@ -262,7 +262,7 @@ All three run models locally on top of llama.cpp. Harness Studio keeps the advan
 <details>
 <summary><b>Windows shows a SmartScreen warning. Is it safe?</b></summary>
 
-The v0.1.2 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
+The v0.2.0 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
 </details>
 
 <details>
