@@ -526,6 +526,7 @@ mod tests {
             timeout: None,
             cancel: &cancel,
             untrusted_corpus: corpus,
+            hooks: None,
         };
         let call = ctx
             .run_call(
@@ -595,6 +596,7 @@ mod tests {
             timeout: None,
             cancel: &cancel,
             untrusted_corpus: "",
+            hooks: None,
         };
         let call = ctx
             .run_call(
