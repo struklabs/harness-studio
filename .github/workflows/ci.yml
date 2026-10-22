@@ -3,6 +3,7 @@ name: CI
 # Targeted CI: a small `changes` job maps the changed paths to areas (rust, frontend, sdk,
 # registry, audit) and only the matching jobs run. The `ci-ok` job always runs and reports
 # one result for the whole workflow, so it is the single check to require in branch rules.
+# Secret scanning always runs, regardless of changed paths.
 #
 # - Pull requests: one Linux runner per job; docs-only pull requests run nothing heavy.
 # - Push to main: the same path filters, but the Rust job runs on Windows, Linux and macOS.
@@ -34,6 +35,57 @@ env:
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 jobs:
+  secrets:
+    name: Secret scanning
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          install_dir=$(mktemp -d "$RUNNER_TEMP/gitleaks.XXXXXX")
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
+            --output "$install_dir/gitleaks.tar.gz"
+          # SHA256 from the release's gitleaks_8.24.3_checksums.txt.
+          echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  $install_dir/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$install_dir/gitleaks.tar.gz" -C "$install_dir" gitleaks
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Scan commits
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          log_opts='--all --full-history'
+          if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ]; then
+            [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            if [ "$BASE_SHA" = 0000000000000000000000000000000000000000 ] && [ "$EVENT" = push ]; then
+              # A new main branch has no previous tip: scan all ancestors of its head.
+              log_opts="$HEAD_SHA"
+            else
+              # A force-pushed previous tip may no longer be reachable from any ref.
+              if ! git cat-file -e "$BASE_SHA^{commit}"; then
+                git fetch --no-tags origin "$BASE_SHA"
+              fi
+              log_opts="$BASE_SHA..$HEAD_SHA"
+            fi
+          fi
+          gitleaks git --config .gitleaks.toml --redact --ignore-gitleaks-allow --log-opts="$log_opts" .
+
   changes:
     name: Changed paths
     runs-on: ubuntu-22.04
@@ -395,7 +447,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, frontend, boundaries, rust, registry, sdk, audit, dogfood, mobile]
+    needs: [changes, secrets, frontend, boundaries, rust, registry, sdk, audit, dogfood, mobile]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

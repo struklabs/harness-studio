@@ -1,0 +1,97 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+# Synthetic assignment used to test broad-mode redaction.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/leakguard\.rs$''']
+regexes = ['''^(abcdef123456|sk-abcdefghijklmnopqrstuvwxyz012345)$''']
+
+# Alphabetic dummy key in the tool-output redaction unit test.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/tools/agent\.rs$''']
+regexes = ['''^sk-abcdefghijklmnopqrstuvwxyz0123456789$''']
+
+# Historical diagnostics sanitizer test used an alphabetic Hugging Face token.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/diagnostics\.rs$''']
+regexes = ['''^hf_abcdefghijklmnopqrstuvwxyz12$''']
+
+# Fake gateway token used by the launch-plan unit test.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/integrations/launch\.rs$''']
+regexes = ['''^hsg_0123456789abcdef$''']
+
+# Plaintext migration fixture; no external service accepts this value.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/servers\.rs$''']
+regexes = ['''^plain-secret-1$''']
+
+# Synthetic token used to test error-detail redaction.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)scripts/test-tool-routing\.mjs$''']
+regexes = ['''^sk-abcdefghijklmnop1234$''']
+
+# GGUF tensor name adjacent to token_embd.weight, not a credential.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/engine/sd_cpp\.rs$''']
+regexes = ['''^blk\.0\.attn_q\.weight$''']
+
+# Locale identifiers following text containing "Access", not credential values.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)src/lib/locales/automations\.ts$''']
+regexes = ['''^n8nui\.permission_(desc|hint)$''']
+
+# Deterministic cross-implementation pairing vectors, reproduced by remote/tests.rs.
+# Only the nine flagged poll_secret values from those published vectors are exempt.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/pairing/remote/fixtures/web-interop\.json$''']
+regexes = [
+  '''^b861c0bac301f3c0c9870d9eaf6a307e$''',
+  '''^d39031d1273a9a18a31374d250b2eb18$''',
+  '''^dddc7517b802f27f7ce840c533701814$''',
+  '''^2b38434128dde55079c0cccb62ae64bd$''',
+  '''^212ffd9363223059ad99b288f65e7866$''',
+  '''^a30ab9cd674bd961c6dab7fa4de1d24e$''',
+  '''^4b31938736b41ac8f7a20e2c6b137ffc$''',
+  '''^4ff4fb7a9578b7ec35542146878ea70e$''',
+  '''^b12a187a2acfc1322a08b429c649ccea$''',
+]
+
+[[rules]]
+id = "github-pat"
+
+# Alphabetic dummy GitHub token used to test token-format redaction.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/leakguard\.rs$''']
+regexes = ['''^ghp_abcdefghijklmnopqrstuvwxyz0123456789$''']
+
+[[rules]]
+id = "aws-access-token"
+
+# Alphabetic dummy access key used to test token-format redaction.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/leakguard\.rs$''']
+regexes = ['''^AKIAABCDEFGHIJKLMNOP$''']
+
+[[rules]]
+id = "jwt"
+
+# Synthetic JWT-shaped string used to test token-format redaction.
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)crates/harness-core/src/leakguard\.rs$''']
+regexes = ['''^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.dBjftJeZ4CVPmB92K27uhbUJU1p1r$''']
