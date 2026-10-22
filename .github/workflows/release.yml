@@ -44,7 +44,45 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+    steps:
+      - name: Find or create the shared draft release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --paginate --slurp > "$RUNNER_TEMP/releases.json"
+          matches=$(jq --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)]' "$RUNNER_TEMP/releases.json")
+          count=$(jq 'length' <<< "$matches")
+          if [ "$count" -gt 1 ]; then
+            echo "::error::Multiple releases exist for $TAG; consolidate the drafts before retrying."
+            exit 1
+          elif [ "$count" -eq 1 ]; then
+            [ "$(jq -r '.[0].draft' <<< "$matches")" = true ] || {
+              echo "::error::Refusing to rebuild a published release."
+              exit 1
+            }
+            release_id=$(jq -r '.[0].id' <<< "$matches")
+          else
+            release_id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$TAG" -f name="Harness Studio $TAG" \
+              -F draft=true -F prerelease=false --jq '.id')
+          fi
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+
   # Harness testing itself on the tagged commit (headless instance, tiny GGUF, official
   # registry). It runs next to the installer builds and does not block them: a red result is
   # a reason to look before publishing the draft release.
@@ -95,6 +133,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" target/server/* --clobber
   build:
+    needs: prepare
     name: ${{ matrix.target && format('{0} ({1})', matrix.platform, matrix.target) || matrix.platform }}
     permissions:
       contents: write
@@ -222,6 +261,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          releaseId: ${{ needs.prepare.outputs.release_id }}
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'Harness Studio ${{ inputs.tag || github.ref_name }}'
           # The release body is written by the `organize` job from .github/release-body.md.
@@ -265,7 +305,7 @@ jobs:
   # _Linux_x86_64.AppImage, _Linux_x86_64.deb. Renaming
   # keeps each asset's id, and latest.json points at asset ids, so the updater is unaffected.
   organize:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -282,7 +322,7 @@ jobs:
         run: |
           set -euo pipefail
           version="${TAG#v}"
-          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          release_id="${{ needs.prepare.outputs.release_id }}"
           gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
             while read -r id name; do
               new=$(printf '%s' "$name" | sed -E \
