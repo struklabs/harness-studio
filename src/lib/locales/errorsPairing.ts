@@ -1,6 +1,12 @@
 // Backend error keys of device pairing (harness_core::pairing, control API /pairing, /devices).
 // Texts are single quoted literals (the CLI compiles the English half in).
 const tr = {
+  'pairing.remote_protocol': 'Güvenli uzak bağlantının protokol denetimi başarısız oldu.',
+  'pairing.remote_keychain': 'Güvenli uzak bağlantının anahtarı işletim sistemi kasasından okunamadı veya kaydedilemedi.',
+  'pairing.remote_revoked': 'Bu cihazın uzak erişim izni geçersiz veya iptal edilmiş.',
+  'pairing.remote_not_built': 'Bu derlemede StrukLabs üzerinden uzaktan erişim etkin değildir.',
+  'pairing.remote_signin_unavailable': 'StrukLabs hesap girişi ve aktarıcı bileti hizmeti henüz kullanıma açık değildir.',
+  'pairing.pending_denied': 'Cihaz sahibi eşleştirme isteğini reddetti.',
   'pairing.invalid_code': 'Eşleştirme kodu yanlış, kullanılmış ya da süresi dolmuş.',
   'pairing.locked': 'Çok fazla yanlış deneme. Bir dakika bekleyin.',
   'pairing.expired': 'Eşleştirme isteğinin süresi doldu.',
@@ -20,6 +26,12 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'pairing.remote_protocol': 'The secure remote connection failed its protocol checks.',
+  'pairing.remote_keychain': 'The secure remote key could not be read from or saved to the OS secret store.',
+  'pairing.remote_revoked': 'This device has invalid or revoked remote access.',
+  'pairing.remote_not_built': 'Remote access via StrukLabs is not enabled in this build.',
+  'pairing.remote_signin_unavailable': 'StrukLabs account sign-in and relay ticket issuance are not deployed yet.',
+  'pairing.pending_denied': 'The device owner denied the pairing request.',
   'pairing.invalid_code': 'The pairing code is wrong, used or expired.',
   'pairing.locked': 'Too many wrong tries. Wait a minute.',
   'pairing.expired': 'The pairing request expired.',

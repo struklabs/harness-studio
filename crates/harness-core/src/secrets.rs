@@ -563,6 +563,11 @@ fn scoped_account(prefix: &str, id: &str) -> String {
     )
 }
 
+/// Stable per-data-directory identity for encrypted remote app connections.
+pub fn remote_noise_account() -> String {
+    scoped_account("remote-noise:", "static-v1")
+}
+
 fn link_account(id: &str) -> String {
     scoped_account(LINK_PREFIX, id)
 }

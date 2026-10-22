@@ -141,6 +141,23 @@ pub(crate) async fn pairing_settings_get() -> Result<pairing::PairingSettings, S
 }
 
 #[tauri::command]
+pub(crate) fn remote_access_available() -> bool {
+    cfg!(feature = "remote-access")
+}
+
+#[tauri::command]
+pub(crate) async fn remote_access_settings_get() -> Result<pairing::remote::RemoteAccessSettingsV1, String> {
+    blocking(|| pairing::hub_for(&device_tokens()).remote_settings()).await
+}
+
+#[tauri::command]
+pub(crate) async fn remote_access_settings_set(enabled: bool) -> Result<(), String> {
+    blocking(move || pairing::hub_for(&device_tokens()).set_remote_settings(&pairing::remote::RemoteAccessSettingsV1 { enabled })).await??;
+    pairing::remote::runtime::restart(device_tokens());
+    Ok(())
+}
+
+#[tauri::command]
 pub(crate) async fn pairing_settings_set(
     settings: pairing::PairingSettings,
 ) -> Result<pairing::PairingSettings, String> {

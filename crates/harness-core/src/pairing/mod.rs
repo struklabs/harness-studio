@@ -25,8 +25,8 @@
 //! The channel is as private as the connection it runs over: use HTTPS (reverse proxy,
 //! Tailscale, a TLS-terminating tunnel) outside a trusted LAN. See `docs/en/remote-access.md`.
 //!
-//! StrukLabs identity, discovery and signaling are modelled as [`SignalingProvider`]; it
-//! never relays inference traffic.
+//! Legacy address discovery is modelled as [`SignalingProvider`]. Encrypted browser
+//! relay access lives separately in [`remote`]; the relay never receives plaintext content.
 
 use crate::control_api::{self, ct_eq, GatewayEndpoint, Scope, TokenInfo, TokenPolicy, TokenStore};
 use serde::{Deserialize, Serialize};
@@ -38,6 +38,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub mod client;
+pub mod remote;
 pub mod service;
 #[cfg(test)]
 mod tests;
@@ -207,6 +208,8 @@ struct StoredDevice {
     role: DeviceRole,
     preset: AccessPreset,
     token_id: String,
+    #[serde(default)]
+    noise_static_pub: Option<String>,
     created_at: u64,
     #[serde(default)]
     report: Option<DeviceSelfReport>,
@@ -328,6 +331,18 @@ struct Claim {
     requested_at: u64,
     expires_at: u64,
     stage: ClaimStage,
+    remote: Option<remote::CommittedClaim>,
+}
+
+impl Claim {
+    fn matches_poll(&self, secret: &str) -> bool {
+        let presented = if self.remote.is_some() {
+            remote::poll_digest(&self.id, secret)
+        } else {
+            secret.to_string()
+        };
+        ct_eq(self.poll_secret.as_bytes(), presented.as_bytes())
+    }
 }
 
 /// What the new device gets back from a successful claim.
@@ -706,6 +721,7 @@ impl Hub {
             requested_at: now,
             expires_at: now + CLAIM_TTL_SECS,
             stage: ClaimStage::Pending,
+            remote: None,
         };
         let started = ClaimStarted {
             claim_id,
@@ -727,7 +743,11 @@ impl Hub {
         self.expire(&mut st, now);
         st.claims
             .iter()
-            .filter(|c| matches!(c.stage, ClaimStage::Pending) && c.expires_at > now)
+            .filter(|c| {
+                matches!(c.stage, ClaimStage::Pending)
+                    && c.expires_at > now
+                    && c.remote.as_ref().is_none_or(|r| r.revealed)
+            })
             .map(|c| PendingClaim {
                 id: c.id.clone(),
                 name: c.name.clone(),
@@ -745,8 +765,8 @@ impl Hub {
     /// The owner approves a pending claim: mints the scoped token and registers the device.
     pub fn approve(&self, claim_id: &str, tokens: &TokenStore) -> Result<DeviceView, String> {
         let now = self.now();
-        let (name, platform, role, preset, models) = {
-            let mut st = self.state.lock().unwrap();
+        let mut st = self.state.lock().unwrap();
+        let (name, platform, role, preset, models, noise_key) = {
             self.expire(&mut st, now);
             let c = st
                 .claims
@@ -754,6 +774,9 @@ impl Hub {
                 .find(|c| c.id == claim_id)
                 .ok_or_else(|| ERR_NOT_FOUND.to_string())?;
             if !matches!(c.stage, ClaimStage::Pending) {
+                return Err(ERR_NOT_PENDING.to_string());
+            }
+            if c.remote.as_ref().is_some_and(|r| !r.revealed) {
                 return Err(ERR_NOT_PENDING.to_string());
             }
             if c.expires_at <= now {
@@ -765,12 +788,22 @@ impl Hub {
                 c.role,
                 c.preset,
                 c.models.clone(),
+                c.remote.as_ref().map(|r| r.client_key),
             )
         };
-        let created = tokens.create_with_policy(
-            &format!("device: {name}"),
+        let mut policy = preset.policy(&models);
+        if noise_key.is_some() {
+            policy.limits.requests_per_minute = Some(60);
+            policy.limits.max_concurrent = Some(1);
+        }
+        let created = tokens.create_bound(
+            &format!("device: {name}")
+                .chars()
+                .take(64)
+                .collect::<String>(),
             &preset.scopes(),
-            &preset.policy(&models),
+            &policy,
+            noise_key,
         )?;
         let device = StoredDevice {
             id: control_api::hex(&control_api::random_bytes::<6>()?),
@@ -779,6 +812,7 @@ impl Hub {
             role,
             preset,
             token_id: created.info.id.clone(),
+            noise_static_pub: noise_key.map(|key| remote::encode(&key)),
             created_at: now,
             report: None,
         };
@@ -792,7 +826,6 @@ impl Hub {
             return Err(e);
         }
         {
-            let mut st = self.state.lock().unwrap();
             if let Some(c) = st.claims.iter_mut().find(|c| c.id == claim_id) {
                 c.stage = ClaimStage::Approved(Box::new(ClaimGrant {
                     token: created.token,
@@ -801,6 +834,7 @@ impl Hub {
                 }));
             }
         }
+        drop(st);
         self.audit("approved", Some(&device.id), Some(&name), None);
         Ok(self.view(&device, Some(&created.info), now))
     }
@@ -833,6 +867,16 @@ impl Hub {
         poll_secret: &str,
         tokens: &TokenStore,
     ) -> Result<ClaimPoll, String> {
+        self.poll_internal(claim_id, poll_secret, tokens, false)
+    }
+
+    fn poll_internal(
+        &self,
+        claim_id: &str,
+        poll_secret: &str,
+        tokens: &TokenStore,
+        remote: bool,
+    ) -> Result<ClaimPoll, String> {
         let now = self.now();
         let mut st = self.state.lock().unwrap();
         self.expire(&mut st, now);
@@ -840,7 +884,7 @@ impl Hub {
             .claims
             .iter()
             .position(|c| {
-                c.id == claim_id && ct_eq(c.poll_secret.as_bytes(), poll_secret.as_bytes())
+                c.remote.is_some() == remote && c.id == claim_id && c.matches_poll(poll_secret)
             })
             .ok_or_else(|| ERR_NOT_FOUND.to_string())?;
         let expired = st.claims[idx].expires_at <= now;
@@ -1042,6 +1086,7 @@ impl Hub {
             Ok(list.remove(pos))
         })?;
         let _ = tokens.revoke(&d.token_id);
+        remote::apps::revoke_device(&d.id);
         self.state.lock().unwrap().seen.remove(&d.token_id);
         self.audit("revoked", Some(&d.id), Some(&d.name), None);
         Ok(())
@@ -1054,6 +1099,7 @@ impl Hub {
         let removed = self.update_devices(|list| Ok(std::mem::take(list)))?;
         for d in &removed {
             let _ = tokens.revoke(&d.token_id);
+            remote::apps::revoke_device(&d.id);
         }
         {
             let mut st = self.state.lock().unwrap();
@@ -1214,9 +1260,8 @@ pub struct SignalPeer {
 }
 
 /// Identity, discovery and signaling for pairing across networks. StrukLabs may implement
-/// this later; it exchanges addresses and offers only. Inference traffic always goes
-/// directly between the paired devices, never through the provider: there is no relay method
-/// on purpose.
+/// this later; it exchanges addresses and offers only. The encrypted browser relay is
+/// separate ([`remote`]); this legacy interface deliberately carries no application frames.
 pub trait SignalingProvider: Send + Sync {
     fn name(&self) -> &'static str;
     fn announce(&self, device: &SignalAnnouncement) -> Result<(), String>;

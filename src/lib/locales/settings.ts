@@ -1,5 +1,8 @@
 // Settings page strings. See common.ts for shared settings.* keys (theme, language) reused here.
 const tr = {
+  'settings.remote_access_title': 'StrukLabs Üzerinden Uzaktan Erişim',
+  'settings.remote_access_hint': 'Uygulama trafiği uçtan uca şifrelenir. Aktarıcı yalnızca şifrelenmiş verileri görür.',
+  'settings.remote_access_preview': 'Önizleme: bağlantı için StrukLabs hesabıyla giriş ve aktarıcı bileti gerekir. Hesap hizmeti henüz kullanıma açık değildir.',
   'settings.latest_version_simple': 'Yeni sürüm: {version} · {size}',
   'settings.custom_binary_help': 'Çalıştırılacak llama-server dosyasını seçip doğrulayın.',
   'settings.close_action_help': 'Pencereyi kapatma düğmesinin davranışını seçin.',
@@ -299,6 +302,9 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'settings.remote_access_title': 'Remote Access via StrukLabs',
+  'settings.remote_access_hint': 'Application traffic is end-to-end encrypted. The relay only sees encrypted data.',
+  'settings.remote_access_preview': 'Preview: connecting requires StrukLabs account sign-in and a relay ticket. The account service is not deployed yet.',
   'settings.latest_version_simple': 'New version: {version} · {size}',
   'settings.custom_binary_help': 'Choose and validate the llama-server executable.',
   'settings.close_action_help': 'Choose what the window’s close button does.',
