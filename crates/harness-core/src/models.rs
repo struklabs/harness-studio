@@ -489,6 +489,21 @@ fn training_display_name(dir: &Path) -> Option<String> {
         .map(String::from)
 }
 
+/// A GGUF a training export wrote next to its `harness-training.json`: the chosen name and the
+/// quantization (`Hello Qwen Q4_K_M`), so each exported file reads apart from the merged folder.
+fn gguf_training_name(path: &Path, quantization: &str) -> Option<String> {
+    let is_gguf = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("gguf"));
+    let name = training_display_name(path.parent().filter(|_| is_gguf)?)?;
+    let quant = quantization.trim();
+    Some(if quant.is_empty() {
+        name
+    } else {
+        format!("{name} {quant}")
+    })
+}
+
 /// Name and "quantization" of an image checkpoint file: the stem, and a precision token of its
 /// name (`fp16`, `fp8`, `bf16`) or the container (`SAFETENSORS`, `CKPT`).
 fn image_file_traits(filename: &str) -> (String, String) {
@@ -614,6 +629,8 @@ impl ModelManager {
                 if let Some(name) = training_display_name(&model.path) {
                     model.name = name;
                 }
+            } else if let Some(name) = gguf_training_name(&model.path, &model.quantization) {
+                model.name = name;
             }
         }
         models.sort_by(|a, b| a.name.cmp(&b.name));
@@ -1026,6 +1043,26 @@ mod tests {
         );
         fs::write(root.path().join("harness-training.json"), r#"{"name":" "}"#).unwrap();
         assert_eq!(training_display_name(root.path()), None);
+    }
+
+    #[test]
+    fn an_exported_gguf_takes_the_training_name_and_its_quantization() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("hello-qwen-Q4_K_M.gguf");
+        fs::write(&file, b"GGUF").unwrap();
+        assert_eq!(gguf_training_name(&file, "Q4_K_M"), None);
+        fs::write(
+            root.path().join("harness-training.json"),
+            r#"{"name":"Hello Qwen"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            gguf_training_name(&file, "Q4_K_M").as_deref(),
+            Some("Hello Qwen Q4_K_M")
+        );
+        assert_eq!(gguf_training_name(&file, "").as_deref(), Some("Hello Qwen"));
+        let weights = root.path().join("weights.safetensors");
+        assert_eq!(gguf_training_name(&weights, "BF16"), None);
     }
 
     #[test]

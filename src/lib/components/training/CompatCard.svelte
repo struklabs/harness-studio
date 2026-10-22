@@ -3,6 +3,7 @@
   import { localParams } from './trainingFormat';
   import { training } from '#lib/stores/training.svelte.js';
   import type { SupportLevel } from '#lib/training-types.js';
+  import { platformLabel } from '../modules/labels.js';
 
   let compat = $derived(training.compat);
 
@@ -17,7 +18,7 @@
   <h3 class="text-sm font-semibold">{t('training.compat_title')}</h3>
   {#if compat}
     <p class="mt-1 text-xs text-muted-foreground">
-      {t('training.compat_machine', { os: compat.os, devices: compat.devices.map((d) => t(`training.device_${d}` as TKey)).join(', ') })}
+      {t('training.compat_machine', { os: platformLabel(compat.os), devices: compat.devices.map((d) => t(`training.device_${d}` as TKey)).join(', ') })}
       {#if !compat.probed}· {t('training.compat_unprobed')}{/if}
     </p>
     <table class="mt-3 w-full text-sm">
