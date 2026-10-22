@@ -72,6 +72,7 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
             settings,
             ephemeral_port: false,
             strict_port: args.port.is_some(),
+            reserved_ports: args.gateway_port.into_iter().collect(),
             shutdown: Some(stop.clone()),
         },
     )

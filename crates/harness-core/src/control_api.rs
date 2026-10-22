@@ -59,7 +59,7 @@ impl Default for ControlApiSettings {
         Self {
             enabled: false,
             host: DEFAULT_HOST.to_string(),
-            port: DEFAULT_PORT,
+            port: crate::ports::listener_default(DEFAULT_PORT),
             allow_network: false,
             cors_origins: Vec::new(),
         }
@@ -668,7 +668,7 @@ mod tests {
     fn settings_validation() {
         let ok = validate_settings(&ControlApiSettings::default(), 0).unwrap();
         assert_eq!(ok.host, "127.0.0.1");
-        assert_eq!(ok.port, 11500);
+        assert_eq!(ok.port, crate::ports::listener_default(DEFAULT_PORT));
         assert!(!ok.enabled, "off by default");
 
         let lan = ControlApiSettings {

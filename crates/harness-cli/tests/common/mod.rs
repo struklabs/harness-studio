@@ -29,8 +29,21 @@ pub fn test_model() -> Option<PathBuf> {
 /// A command with a clean environment: the given data dir, no remote host, memory secrets.
 pub fn cmd(data_dir: &Path) -> Command {
     let mut c = Command::new(bin());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
     c.env("HARNESS_DATA_DIR", data_dir)
         .env("HARNESS_MEMORY_SECRETS", "1")
+        .env("HOME", data_dir.join("home"))
+        .env("USERPROFILE", data_dir.join("home"))
+        .env("APPDATA", data_dir.join("appdata"))
+        .env("LOCALAPPDATA", data_dir.join("localappdata"))
+        .env("XDG_CONFIG_HOME", data_dir.join("home/.config"))
+        .env("XDG_DATA_HOME", data_dir.join("home/.local/share"))
+        .env("CODEX_HOME", data_dir.join("home/.codex"))
+        .env("CLAUDE_CONFIG_DIR", data_dir.join("home/.claude"))
         .env_remove("HARNESS_HOST")
         .env_remove("HARNESS_TOKEN")
         .env_remove("HARNESS_SERVER_API_KEY")
@@ -132,11 +145,24 @@ impl Serve {
     }
 
     /// `start` with extra `serve` arguments.
-    pub fn start_with(data_dir: &Path, mut port: u16, extra: &[&str]) -> Serve {
+    pub fn start_with(data_dir: &Path, port: u16, extra: &[&str]) -> Serve {
+        Self::start_options(data_dir, Some(port), extra)
+    }
+
+    /// Starts without a port override, exercising settings/default selection.
+    pub fn start_auto(data_dir: &Path, extra: &[&str]) -> Serve {
+        Self::start_options(data_dir, None, extra)
+    }
+
+    fn start_options(data_dir: &Path, mut port: Option<u16>, extra: &[&str]) -> Serve {
         let mut extra: Vec<String> = extra.iter().map(|s| (*s).to_owned()).collect();
         for attempt in 0..5 {
-            let mut child = cmd(data_dir)
-                .args(["serve", "--json", "--port", &port.to_string()])
+            let mut command = cmd(data_dir);
+            command.args(["serve", "--json"]);
+            if let Some(port) = port {
+                command.args(["--port", &port.to_string()]);
+            }
+            let mut child = command
                 .args(&extra)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -186,7 +212,7 @@ impl Serve {
                 || ((error.contains("api.bind_failed") || error.contains("gateway.bind_failed"))
                     && error.contains("is in use"));
             assert!(conflict && attempt < 4, "serve failed: {error}");
-            port = free_port(18500);
+            port = port.map(|_| free_port(18500));
             if let Some(i) = extra.iter().position(|s| s == "--gateway-port") {
                 extra[i + 1] = free_port(19000).to_string();
             }

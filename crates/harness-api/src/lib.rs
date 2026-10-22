@@ -140,6 +140,7 @@ pub struct ApiServer {
     shutdown: std::sync::Mutex<Option<Arc<tokio::sync::Notify>>>,
     /// The port was given explicitly (`harness serve --port`): no fallback port when taken.
     strict_port: std::sync::atomic::AtomicBool,
+    reserved_ports: std::sync::Mutex<Vec<u16>>,
 }
 
 fn base_url(addr: &SocketAddr, tls: bool) -> String {
@@ -173,6 +174,11 @@ impl ApiServer {
     pub fn set_strict_port(&self, strict: bool) {
         self.strict_port
             .store(strict, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Ports reserved for listeners that start after the API (for example a CLI gateway override).
+    pub fn set_reserved_ports(&self, ports: Vec<u16>) {
+        *self.reserved_ports.lock().unwrap() = ports;
     }
 
     /// (Re)starts the listener with `settings` (validated here; a network bind needs
@@ -217,19 +223,37 @@ impl ApiServer {
                 // Another program on the configured port: a fallback port (the last one
                 // first), never the gateway's.
                 let gw = harness_core::gateway::status();
-                let mut avoid = vec![harness_core::config::AppSettings::load().gateway.port];
+                let gateway = harness_core::config::AppSettings::load().gateway;
+                let mut avoid = vec![gateway.port];
+                if gateway.ollama_port_enabled {
+                    avoid.push(gateway.ollama_port);
+                }
+                avoid.extend(self.reserved_ports.lock().unwrap().iter().copied());
                 avoid.extend(gw.port.filter(|_| gw.running));
                 let avoid =
                     (!self.strict_port.load(std::sync::atomic::Ordering::SeqCst)).then_some(avoid);
                 let remembered = PortState::load(&ctx.data_dir).control_api;
-                harness_core::ports::bind_with_fallback(
-                    &settings.host,
-                    settings.port,
-                    remembered,
-                    avoid,
-                )
-                .await
-                .map_err(|e| format!("api.bind_failed: {}", e))?
+                let implicit = !self.strict_port.load(std::sync::atomic::Ordering::SeqCst)
+                    && harness_core::ports::implicit_listener_port(
+                        &ctx.data_dir,
+                        "control_api",
+                        "port",
+                        settings.port,
+                        control_api::DEFAULT_PORT,
+                    );
+                // A saved gateway port wins over an unconfigured API default.
+                let port = if implicit && avoid.as_ref().is_some_and(|a| a.contains(&settings.port))
+                {
+                    harness_core::ports::pick_auto(&settings.host, None, avoid.as_deref().unwrap())
+                        .ok_or_else(|| {
+                            harness_core::error_key::err("api.bind_failed").to_string()
+                        })?
+                } else {
+                    settings.port
+                };
+                harness_core::ports::bind_with_fallback(&settings.host, port, remembered, avoid)
+                    .await
+                    .map_err(|e| format!("api.bind_failed: {}", e))?
             }
         };
         let addr = listener.local_addr().map_err(|e| e.to_string())?;

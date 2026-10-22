@@ -269,9 +269,27 @@ impl GatewayServer {
         bound: Option<tokio::net::TcpListener>,
     ) -> Result<GatewayStatus, String> {
         let tokens = TokenStore::at(&ctx.data_dir.join("config"));
-        let control_port = Some(harness_core::config::AppSettings::load().control_api.port);
+        let implicit = !self.strict_port.load(std::sync::atomic::Ordering::SeqCst)
+            && harness_core::ports::implicit_listener_port(
+                &ctx.data_dir,
+                "gateway",
+                "port",
+                settings.port,
+                gateway::DEFAULT_PORT,
+            );
+        let control_port = harness_core::ports::live_api_port()
+            .or_else(|| Some(harness_core::config::AppSettings::load().control_api.port))
+            // An automatic gateway can fall back when the API owns its preferred port.
+            .filter(|port| !implicit || *port != settings.port);
+        let mut incoming = settings.clone();
+        if implicit && incoming.ollama_port_enabled && incoming.port == incoming.ollama_port {
+            let mut avoid = vec![incoming.ollama_port];
+            avoid.extend(control_port);
+            incoming.port = harness_core::ports::pick_auto(&incoming.host, None, &avoid)
+                .ok_or_else(|| harness_core::error_key::err("gateway.bind_failed").to_string())?;
+        }
         let settings = gateway::validate_settings(
-            settings,
+            &incoming,
             gateway::inference_token_count(&tokens),
             control_port,
         )?;
@@ -382,7 +400,14 @@ impl GatewayServer {
             },
         };
         let ollama = if settings.ollama_port_enabled {
-            ollama_listener(&state, &settings).await
+            let implicit = harness_core::ports::implicit_listener_port(
+                &ctx.data_dir,
+                "gateway",
+                "ollama_port",
+                settings.ollama_port,
+                gateway::OLLAMA_DEFAULT_PORT,
+            );
+            ollama_listener(&state, &settings, implicit).await
         } else {
             Ok(None)
         };
@@ -551,58 +576,68 @@ type OllamaListener = (u16, oneshot::Sender<()>, tokio::task::JoinHandle<()>);
 async fn ollama_listener(
     state: &GwState,
     settings: &GatewaySettings,
+    implicit: bool,
 ) -> Result<Option<OllamaListener>, String> {
     let port = settings.ollama_port;
-    let probe_host = harness_core::process::connect_host(&settings.host);
-    let probe_host = if probe_host.contains(':') && !probe_host.starts_with('[') {
-        format!("[{}]", probe_host)
-    } else {
-        probe_host
-    };
-    let probe = state
-        .http
-        .get(format!("http://{}:{}/api/version", probe_host, port))
-        .timeout(std::time::Duration::from_millis(1500))
-        .send()
-        .await;
-    if let Ok(resp) = probe {
-        let harness = resp.headers().contains_key("x-harness-compat");
-        let is_ollama = resp
-            .json::<serde_json::Value>()
+    let listener = if implicit {
+        let mut avoid = vec![state.addr.port()];
+        avoid.extend(harness_core::ports::live_api_port());
+        harness_core::ports::bind_with_fallback(&settings.host, port, None, Some(avoid))
             .await
-            .ok()
-            .is_some_and(|v| v.get("version").is_some());
-        let key = match (is_ollama, harness) {
-            (true, false) => gateway::WARN_OLLAMA_RUNNING,
-            (true, true) => gateway::WARN_OLLAMA_HARNESS,
-            _ => gateway::WARN_OLLAMA_BUSY,
-        };
-        return Err(format!("{}: {}", key, port));
-    }
-    // Nothing answers: Ollama installed but not running keeps its default port (it would
-    // fail to start later), and a program that holds the port without answering is named.
-    let (installed, holder) = tokio::task::spawn_blocking(move || {
-        (
-            port == gateway::OLLAMA_DEFAULT_PORT && harness_core::ports::ollama_installed(),
-            harness_core::ports::holder(port),
-        )
-    })
-    .await
-    .unwrap_or((false, None));
-    if let Some(h) = holder {
-        let key = if harness_core::ports::is_ollama(&h) {
-            gateway::WARN_OLLAMA_RUNNING
+            .map_err(|e| format!("{}: {} ({})", gateway::WARN_OLLAMA_BUSY, port, e))?
+            .0
+    } else {
+        let probe_host = harness_core::process::connect_host(&settings.host);
+        let probe_host = if probe_host.contains(':') && !probe_host.starts_with('[') {
+            format!("[{}]", probe_host)
         } else {
-            gateway::WARN_OLLAMA_BUSY
+            probe_host
         };
-        return Err(format!("{}: {} ({})", key, port, h.label()));
-    }
-    if installed {
-        return Err(format!("{}: {}", gateway::WARN_OLLAMA_INSTALLED, port));
-    }
-    let listener = match tokio::net::TcpListener::bind((settings.host.as_str(), port)).await {
-        Ok(l) => l,
-        Err(e) => return Err(format!("{}: {} ({})", gateway::WARN_OLLAMA_BUSY, port, e)),
+        let probe = state
+            .http
+            .get(format!("http://{}:{}/api/version", probe_host, port))
+            .timeout(std::time::Duration::from_millis(1500))
+            .send()
+            .await;
+        if let Ok(resp) = probe {
+            let harness = resp.headers().contains_key("x-harness-compat");
+            let is_ollama = resp
+                .json::<serde_json::Value>()
+                .await
+                .ok()
+                .is_some_and(|v| v.get("version").is_some());
+            let key = match (is_ollama, harness) {
+                (true, false) => gateway::WARN_OLLAMA_RUNNING,
+                (true, true) => gateway::WARN_OLLAMA_HARNESS,
+                _ => gateway::WARN_OLLAMA_BUSY,
+            };
+            return Err(format!("{}: {}", key, port));
+        }
+        // Nothing answers: Ollama installed but not running keeps its default port (it would
+        // fail to start later), and a program that holds the port without answering is named.
+        let (installed, holder) = tokio::task::spawn_blocking(move || {
+            (
+                port == gateway::OLLAMA_DEFAULT_PORT && harness_core::ports::ollama_installed(),
+                harness_core::ports::holder(port),
+            )
+        })
+        .await
+        .unwrap_or((false, None));
+        if let Some(h) = holder {
+            let key = if harness_core::ports::is_ollama(&h) {
+                gateway::WARN_OLLAMA_RUNNING
+            } else {
+                gateway::WARN_OLLAMA_BUSY
+            };
+            return Err(format!("{}: {} ({})", key, port, h.label()));
+        }
+        if installed {
+            return Err(format!("{}: {}", gateway::WARN_OLLAMA_INSTALLED, port));
+        }
+        match tokio::net::TcpListener::bind((settings.host.as_str(), port)).await {
+            Ok(l) => l,
+            Err(e) => return Err(format!("{}: {} ({})", gateway::WARN_OLLAMA_BUSY, port, e)),
+        }
     };
     let addr = listener.local_addr().map_err(|e| e.to_string())?;
     let mut st = state.clone();
