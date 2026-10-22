@@ -547,6 +547,7 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
             ) || is_mistralrs_dir(model_path)
                 || python_hf::is_model_dir(model_path)
                 || mlx::is_any_model_dir(model_path)
+                || mlx::is_mlx_checkpoint(model_path)
                 || transcribe_cpp::is_model(model_path)
                 || crispasr::is_asr_gguf(model_path)
                 || crispasr_tts::is_tts_gguf(model_path)))
