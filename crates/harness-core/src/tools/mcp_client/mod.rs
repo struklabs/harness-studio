@@ -53,7 +53,7 @@ pub mod oauth;
 mod sse;
 mod stdio;
 #[cfg(test)]
-mod testserver;
+pub(crate) mod testserver;
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};

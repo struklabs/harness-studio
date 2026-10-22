@@ -28,7 +28,7 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 16. [Agent Office](14-agent-office.md)
 17. [Coding](coding.md)
 
-For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
+For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md). To use Gmail, Google Drive, Google Calendar, or Excel as tools, see [Connectors](connectors.md).
 
 For how the project is built, licensed, and supported, see [Open Source](open-source.md).
 

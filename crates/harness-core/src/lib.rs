@@ -19,6 +19,7 @@ pub mod coding;
 pub mod comfyui;
 pub mod compaction;
 pub mod config;
+pub mod connectors;
 pub mod control_api;
 pub mod convert;
 pub mod devices;

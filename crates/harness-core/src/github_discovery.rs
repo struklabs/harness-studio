@@ -243,6 +243,189 @@ pub struct SkillReview {
     pub scripts: Vec<String>,
     pub network: Vec<String>,
     pub bytes: usize,
+    /// Files and directories SKILL.md points to that exist in the skill.
+    #[serde(default)]
+    pub references: Vec<String>,
+    /// Problems that do not block installation (e.g. a script SKILL.md never mentions).
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// Risky patterns found in the skill's scripts (static text scan; nothing is executed).
+    #[serde(default)]
+    pub risks: Vec<RiskFinding>,
+    #[serde(default)]
+    pub security: SecuritySummary,
+    /// Commit the review and the install are pinned to.
+    #[serde(default)]
+    pub commit: String,
+    /// Where an install lands: always the user scope, never a project or workspace.
+    #[serde(default)]
+    pub scope: String,
+    #[serde(default)]
+    pub install_dir: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RiskFinding {
+    pub file: String,
+    /// `network`, `shell`, `eval`, `credentials` or `binary`.
+    pub category: String,
+    /// The matched pattern, shown to the user.
+    pub pattern: String,
+    pub line: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SecuritySummary {
+    /// `none` (no scripts), `low`, `medium` or `high`.
+    pub level: String,
+    pub scripts_scanned: usize,
+    pub network: usize,
+    pub shell: usize,
+    pub eval: usize,
+    pub credentials: usize,
+    pub binary: usize,
+}
+
+type RiskRule = (&'static str, &'static str, &'static str);
+/// (category, label, case-insensitive regex). Plain text matching: a hit is a reason to read
+/// the script, not proof of harm, and a miss is not proof of safety.
+const RISK_RULES: &[RiskRule] = &[
+    ("network", "http(s) URL", r"https?://"),
+    ("network", "curl / wget", r"\b(?:curl|wget)\b"),
+    (
+        "network",
+        "Invoke-WebRequest",
+        r"invoke-(?:webrequest|restmethod)|\b(?:iwr|irm)\b",
+    ),
+    (
+        "network",
+        "fetch / requests / urllib / httpx / axios",
+        r"\bfetch\(|\brequests\.|\burllib|\bhttpx\b|\baxios\b",
+    ),
+    ("network", "socket", r"\bsocket\b|\bnc\s+-"),
+    (
+        "shell",
+        "subprocess / os.system / Popen",
+        r"\bsubprocess\b|\bos\.system\b|\bpopen\b",
+    ),
+    (
+        "shell",
+        "child_process / exec",
+        r"\bchild_process\b|\bexecsync\b|\bspawnsync\b",
+    ),
+    (
+        "shell",
+        "sh -c / bash -c / cmd /c",
+        r"\b(?:ba|z)?sh\s+-c\b|\bcmd(?:\.exe)?\s+/c\b|\bpowershell(?:\.exe)?\b|\bpwsh\b",
+    ),
+    ("shell", "Start-Process", r"start-process"),
+    (
+        "shell",
+        "destructive delete",
+        r"\brm\s+-rf?\b|\bremove-item\b.*-recurse|\bdel\s+/[sq]\b",
+    ),
+    (
+        "eval",
+        "eval / exec of dynamic code",
+        r"\beval\s*\(|\bexec\s*\(|new\s+function\s*\(|\binvoke-expression\b|\biex\b",
+    ),
+    (
+        "eval",
+        "decode and run",
+        r"base64\s+(?:-d|--decode)|frombase64string|\batob\s*\(|\|\s*(?:ba)?sh\b",
+    ),
+    (
+        "credentials",
+        "credential files and stores",
+        r"\.ssh\b|\.aws\b|\.npmrc|\.netrc|\bid_rsa|\.kube[/\\]config|\.gnupg|login data|\bcredentials(?:\.json)?\b|\.git-credentials",
+    ),
+    (
+        "credentials",
+        "environment secrets",
+        r"\.env\b|(?:api[_-]?key|secret|token|password)s?\s*[=:]|os\.environ|process\.env|getenv\(",
+    ),
+    (
+        "credentials",
+        "keychains and browser data",
+        r"\bkeychain\b|\bcookies\b|appdata[/\\]roaming|\bsecurity\s+find-",
+    ),
+];
+
+fn risk_rules() -> &'static Vec<(&'static str, &'static str, regex::Regex)> {
+    static RULES: std::sync::OnceLock<Vec<(&'static str, &'static str, regex::Regex)>> =
+        std::sync::OnceLock::new();
+    RULES.get_or_init(|| {
+        RISK_RULES
+            .iter()
+            .map(|(c, l, p)| {
+                (
+                    *c,
+                    *l,
+                    regex::RegexBuilder::new(p)
+                        .case_insensitive(true)
+                        .build()
+                        .expect("constant regex"),
+                )
+            })
+            .collect()
+    })
+}
+
+const BINARY_EXTENSIONS: &[&str] = &["exe", "dll", "so", "dylib"];
+
+/// Scans one script's text; at most one finding per rule and line, 50 per file.
+pub fn scan_script(path: &str, bytes: &[u8]) -> Vec<RiskFinding> {
+    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    if BINARY_EXTENSIONS.contains(&ext.as_str()) || bytes.contains(&0) {
+        return vec![RiskFinding {
+            file: path.into(),
+            category: "binary".into(),
+            pattern: "compiled code that cannot be read".into(),
+            line: 0,
+        }];
+    }
+    let text = String::from_utf8_lossy(bytes);
+    let mut out = vec![];
+    for (i, line) in text.lines().enumerate() {
+        for (category, label, re) in risk_rules() {
+            if out.len() >= 50 {
+                return out;
+            }
+            if re.is_match(line) {
+                out.push(RiskFinding {
+                    file: path.into(),
+                    category: (*category).into(),
+                    pattern: (*label).into(),
+                    line: i + 1,
+                });
+            }
+        }
+    }
+    out
+}
+
+pub fn summarize(scripts: &[String], risks: &[RiskFinding]) -> SecuritySummary {
+    let count = |c: &str| risks.iter().filter(|r| r.category == c).count();
+    let mut s = SecuritySummary {
+        level: String::new(),
+        scripts_scanned: scripts.len(),
+        network: count("network"),
+        shell: count("shell"),
+        eval: count("eval"),
+        credentials: count("credentials"),
+        binary: count("binary"),
+    };
+    s.level = if scripts.is_empty() {
+        "none"
+    } else if s.credentials > 0 || s.binary > 0 || (s.eval > 0 && s.network > 0) {
+        "high"
+    } else if s.shell > 0 || s.eval > 0 || s.network > 0 {
+        "medium"
+    } else {
+        "low"
+    }
+    .into();
+    s
 }
 
 fn safe(path: &str) -> bool {
@@ -294,6 +477,13 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
         scripts: vec![],
         network: vec![],
         bytes: files.values().map(Vec::len).sum(),
+        references: vec![],
+        warnings: vec![],
+        risks: vec![],
+        security: SecuritySummary::default(),
+        commit: String::new(),
+        scope: "user".into(),
+        install_dir: String::new(),
     };
     let text = files
         .get("SKILL.md")
@@ -321,6 +511,8 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
         let p = reference[1].trim_end_matches('.');
         if !exists(p) {
             r.errors.push(format!("Missing or unsafe resource: {p}"));
+        } else if !r.references.iter().any(|x| x == p) {
+            r.references.push(p.to_string());
         }
     }
     let links =
@@ -336,8 +528,12 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
             .next()
             .unwrap_or("")
             .trim_start_matches("./");
-        if !p.is_empty() && !p.starts_with("https://") && !p.starts_with("http://") && !exists(p) {
-            r.errors.push(format!("Missing or unsafe reference: {p}"));
+        if !p.is_empty() && !p.starts_with("https://") && !p.starts_with("http://") {
+            if !exists(p) {
+                r.errors.push(format!("Missing or unsafe reference: {p}"));
+            } else if !r.references.iter().any(|x| x == p) {
+                r.references.push(p.to_string());
+            }
         }
     }
     for (p, b) in files {
@@ -359,6 +555,7 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
             || b.starts_with(b"#!")
         {
             r.scripts.push(p.clone());
+            r.risks.extend(scan_script(p, b));
         }
         let s = String::from_utf8_lossy(b);
         if [
@@ -377,6 +574,17 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
             r.network.push(p.clone());
         }
     }
+    for script in &r.scripts {
+        let mentioned = text.contains(script.as_str())
+            || r.references
+                .iter()
+                .any(|d| d.ends_with('/') && script.starts_with(d.as_str()));
+        if !mentioned && script != "SKILL.md" {
+            r.warnings
+                .push(format!("Script is not referenced by SKILL.md: {script}"));
+        }
+    }
+    r.security = summarize(&r.scripts, &r.risks);
     r
 }
 
@@ -480,6 +688,165 @@ pub fn parse_mcp(v: &Value) -> Value {
     json!({"name":server["name"],"config":configs})
 }
 
+fn check(id: &str, status: &str, detail: impl Into<String>) -> Value {
+    json!({"id": id, "status": status, "detail": detail.into()})
+}
+
+/// Protocol and metadata checks of one registry `server.json`, against the MCP Registry schema
+/// and the transports of the MCP specification. `repo` is the GitHub repository the entry was
+/// found for. Statuses are `pass`, `warn` and `fail`; nothing here contacts the server.
+pub fn evaluate_mcp(v: &Value, repo: Option<&str>) -> Value {
+    let server = v.get("server").unwrap_or(v);
+    let mut top = vec![];
+    let name = server["name"].as_str().unwrap_or("");
+    let name_ok = name.split_once('/').is_some_and(|(ns, n)| {
+        ns.contains('.')
+            && !n.is_empty()
+            && ns
+                .bytes()
+                .chain(n.bytes())
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    });
+    top.push(if name_ok {
+        check("name_format", "pass", name)
+    } else {
+        check("name_format", "fail", name)
+    });
+    if let (Some(repo), Some(owner)) = (repo, name.strip_prefix("io.github.")) {
+        let owner = owner.split('/').next().unwrap_or("");
+        let matches = repo
+            .split('/')
+            .next()
+            .is_some_and(|o| o.eq_ignore_ascii_case(owner));
+        top.push(check(
+            "namespace_matches_repo",
+            if matches { "pass" } else { "fail" },
+            owner,
+        ));
+    }
+    top.push(
+        if server["description"]
+            .as_str()
+            .is_some_and(|d| !d.trim().is_empty())
+        {
+            check("description", "pass", "")
+        } else {
+            check("description", "warn", "")
+        },
+    );
+    top.push(
+        if server["version"]
+            .as_str()
+            .is_some_and(|d| !d.trim().is_empty())
+        {
+            check(
+                "server_version",
+                "pass",
+                server["version"].as_str().unwrap_or(""),
+            )
+        } else {
+            check("server_version", "warn", "")
+        },
+    );
+    top.push(
+        if server["$schema"]
+            .as_str()
+            .is_some_and(|u| u.contains("modelcontextprotocol.io"))
+        {
+            check("schema", "pass", server["$schema"].as_str().unwrap_or(""))
+        } else {
+            check("schema", "warn", "")
+        },
+    );
+    let mut entries = vec![];
+    for p in server["packages"].as_array().into_iter().flatten() {
+        let transport = p["transport"]["type"].as_str().unwrap_or("");
+        let version = p["version"].as_str().unwrap_or("");
+        let mut checks = vec![];
+        checks.push(if transport == "stdio" {
+            check("transport", "pass", transport)
+        } else if matches!(transport, "streamable-http" | "sse") {
+            check("transport", "warn", transport)
+        } else {
+            check("transport", "fail", transport)
+        });
+        checks.push(
+            if version.is_empty() || version.eq_ignore_ascii_case("latest") {
+                check("version_pinned", "fail", version)
+            } else {
+                check("version_pinned", "pass", version)
+            },
+        );
+        checks.push(
+            if matches!(p["registryType"].as_str(), Some("npm" | "pypi")) {
+                check(
+                    "package_manager",
+                    "pass",
+                    p["registryType"].as_str().unwrap_or(""),
+                )
+            } else {
+                check(
+                    "package_manager",
+                    "warn",
+                    p["registryType"].as_str().unwrap_or(""),
+                )
+            },
+        );
+        let secrets = p["environmentVariables"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|e| e["isSecret"] == true)
+            .count();
+        checks.push(check(
+            "secrets",
+            if secrets > 0 { "warn" } else { "pass" },
+            secrets.to_string(),
+        ));
+        entries.push(json!({"kind": if transport == "stdio" {"local_stdio"} else {"unknown"}, "label": p["identifier"], "checks": checks}));
+    }
+    for r in server["remotes"].as_array().into_iter().flatten() {
+        let transport = r["type"].as_str().unwrap_or("");
+        let url = reqwest::Url::parse(r["url"].as_str().unwrap_or("")).ok();
+        let mut checks = vec![];
+        checks.push(match transport {
+            "streamable-http" => check("transport", "pass", transport),
+            "sse" => check("transport", "warn", transport),
+            _ => check("transport", "fail", transport),
+        });
+        checks.push(match &url {
+            Some(u)
+                if u.scheme() == "https" && u.username().is_empty() && u.password().is_none() =>
+            {
+                check("remote_https", "pass", u.origin().ascii_serialization())
+            }
+            Some(u)
+                if u.scheme() == "http"
+                    && matches!(u.host_str(), Some("localhost" | "127.0.0.1" | "[::1]")) =>
+            {
+                check("remote_https", "warn", u.origin().ascii_serialization())
+            }
+            _ => check("remote_https", "fail", r["url"].as_str().unwrap_or("")),
+        });
+        let secret_headers = r["headers"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|h| h["isSecret"] == true)
+            .count();
+        checks.push(check(
+            "secrets",
+            if secret_headers > 0 { "warn" } else { "pass" },
+            secret_headers.to_string(),
+        ));
+        entries.push(json!({"kind": if matches!(transport, "streamable-http" | "sse") {"remote_http"} else {"unknown"}, "label": r["url"], "checks": checks}));
+    }
+    if entries.is_empty() {
+        top.push(check("deployment", "fail", ""));
+    }
+    json!({"checks": top, "entries": entries})
+}
+
 pub fn parse_manifests(manifests: &BTreeMap<String, String>, readme: &str) -> Value {
     let package = manifests
         .get("package.json")
@@ -564,7 +931,15 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
                 return Err("Repository exceeds 20 skills".into());
             }
             match skill_files(&gh, &repo, &tree, p).await {
-                Ok(files) => skills.push(validate_skill(p, &files)),
+                Ok(files) => {
+                    let mut review = validate_skill(p, &files);
+                    review.commit = sha.clone();
+                    review.install_dir = crate::skills::root()
+                        .join(&review.name)
+                        .to_string_lossy()
+                        .into_owned();
+                    skills.push(review);
+                }
                 Err(e) => skills.push(SkillReview {
                     path: p.into(),
                     name: String::new(),
@@ -572,6 +947,13 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
                     scripts: vec![],
                     network: vec![],
                     bytes: 0,
+                    references: vec![],
+                    warnings: vec![],
+                    risks: vec![],
+                    security: SecuritySummary::default(),
+                    commit: sha.clone(),
+                    scope: "user".into(),
+                    install_dir: String::new(),
                 }),
             }
         }
@@ -581,6 +963,9 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
         .and_then(|s| serde_json::from_str::<Value>(s).ok())
         .unwrap_or(Value::Null);
     let mut mcp = parse_mcp(&server);
+    if !server.is_null() {
+        mcp["evaluation"] = evaluate_mcp(&server, Some(&repo));
+    }
     mcp["manifestHints"] = parse_manifests(&manifests, &readme);
     // Registry metadata is separate from Harness's official catalog. Never send the GitHub token.
     let registry = Github {
@@ -609,7 +994,11 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
                     .and_then(Value::as_str)
                     .and_then(|u| repository(u).ok())
                     .is_some_and(|r| r.eq_ignore_ascii_case(&repo)))
-                .map(parse_mcp)
+                .map(|s| {
+                    let mut parsed = parse_mcp(s);
+                    parsed["evaluation"] = evaluate_mcp(s, Some(&repo));
+                    parsed
+                })
                 .collect::<Vec<_>>());
         }
         Err(e) => {
@@ -649,6 +1038,7 @@ pub async fn install(
     sha: &str,
     path: &str,
     scripts: &[String],
+    security_level: &str,
     confirmed: bool,
     root: &Path,
 ) -> Result<(), String> {
@@ -664,7 +1054,10 @@ pub async fn install(
     let tree = gh.tree(&repo, sha).await?;
     let files = skill_files(&gh, &repo, &tree, path).await?;
     let review = validate_skill(path, &files);
-    if !review.errors.is_empty() || review.scripts != scripts {
+    if !review.errors.is_empty()
+        || review.scripts != scripts
+        || review.security.level != security_level
+    {
         return Err("Skill validation or script confirmation failed; review again".into());
     }
     install_files(root, &repo, sha, &review, &files)
@@ -921,16 +1314,123 @@ mod tests {
             &"a".repeat(40),
             "SKILL.md",
             &[],
+            "none",
             false,
             temp.path()
         )
         .await
         .is_err());
-        assert!(
-            install("owner/demo", "main", "SKILL.md", &[], true, temp.path())
-                .await
-                .is_err()
-        );
+        assert!(install(
+            "owner/demo",
+            "main",
+            "SKILL.md",
+            &[],
+            "none",
+            true,
+            temp.path()
+        )
+        .await
+        .is_err());
         assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
+    }
+    #[test]
+    fn script_scan_flags_network_shell_eval_and_credential_patterns() {
+        let script = b"import subprocess, requests\nrequests.get('https://x.test')\nsubprocess.run(['ls'])\neval(data)\nopen('~/.ssh/id_rsa')\n";
+        let risks = scan_script("scripts/a.py", script);
+        let cats: std::collections::BTreeSet<_> =
+            risks.iter().map(|r| r.category.as_str()).collect();
+        assert_eq!(
+            cats,
+            ["credentials", "eval", "network", "shell"]
+                .into_iter()
+                .collect()
+        );
+        assert!(risks.iter().any(|r| r.category == "eval" && r.line == 4));
+        assert!(scan_script("scripts/ok.py", b"print('hi')\n").is_empty());
+        let binary = scan_script("scripts/tool.exe", b"MZ\0\0");
+        assert_eq!(binary[0].category, "binary");
+        let summary = summarize(&["scripts/a.py".into()], &risks);
+        assert_eq!(summary.level, "high");
+        assert_eq!(summarize(&[], &[]).level, "none");
+        assert_eq!(summarize(&["a.sh".into()], &[]).level, "low");
+        let net = scan_script("a.sh", b"curl https://x.test");
+        assert_eq!(summarize(&["a.sh".into()], &net).level, "medium");
+    }
+    #[test]
+    fn skill_review_reports_references_warnings_security_and_pins_the_security_level() {
+        let mut content = files();
+        content.insert("scripts/unused.sh".into(), b"echo hi".to_vec());
+        let review = validate_skill("SKILL.md", &content);
+        assert!(review.errors.is_empty(), "{:?}", review.errors);
+        assert!(review
+            .references
+            .contains(&"references/guide.md".to_string()));
+        assert!(review.references.contains(&"scripts/demo.py".to_string()));
+        assert_eq!(
+            review.warnings,
+            vec!["Script is not referenced by SKILL.md: scripts/unused.sh"]
+        );
+        assert_eq!(review.security.level, "medium");
+        assert_eq!(review.security.network, 2);
+        assert_eq!(review.scope, "user");
+    }
+    #[test]
+    fn mcp_evaluation_checks_protocol_metadata_and_transport_kind() {
+        let good = json!({"server":{"$schema":"https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json","name":"io.github.owner/demo","description":"Demo","version":"1.0.0","packages":[{"registryType":"npm","identifier":"@demo/server","version":"1.2.3","transport":{"type":"stdio"},"environmentVariables":[{"name":"K","isSecret":true}]}],"remotes":[{"type":"streamable-http","url":"https://example.com/mcp"}]}});
+        let e = evaluate_mcp(&good, Some("Owner/demo"));
+        let status = |checks: &Value, id: &str| {
+            checks
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == id)
+                .map(|c| c["status"].as_str().unwrap().to_string())
+        };
+        assert_eq!(status(&e["checks"], "name_format").as_deref(), Some("pass"));
+        assert_eq!(
+            status(&e["checks"], "namespace_matches_repo").as_deref(),
+            Some("pass")
+        );
+        assert_eq!(e["entries"][0]["kind"], "local_stdio");
+        assert_eq!(
+            status(&e["entries"][0]["checks"], "version_pinned").as_deref(),
+            Some("pass")
+        );
+        assert_eq!(
+            status(&e["entries"][0]["checks"], "secrets").as_deref(),
+            Some("warn")
+        );
+        assert_eq!(e["entries"][1]["kind"], "remote_http");
+        assert_eq!(
+            status(&e["entries"][1]["checks"], "remote_https").as_deref(),
+            Some("pass")
+        );
+        let bad = json!({"server":{"name":"demo","packages":[{"registryType":"npm","identifier":"x","version":"latest","transport":{"type":"stdio"}}],"remotes":[{"type":"sse","url":"http://example.com/mcp"}]}});
+        let e = evaluate_mcp(&bad, Some("other/demo"));
+        assert_eq!(status(&e["checks"], "name_format").as_deref(), Some("fail"));
+        assert_eq!(
+            status(&e["entries"][0]["checks"], "version_pinned").as_deref(),
+            Some("fail")
+        );
+        assert_eq!(
+            status(&e["entries"][1]["checks"], "remote_https").as_deref(),
+            Some("fail")
+        );
+        assert_eq!(
+            status(&e["entries"][1]["checks"], "transport").as_deref(),
+            Some("warn")
+        );
+        let mismatch = evaluate_mcp(
+            &json!({"server":{"name":"io.github.evil/demo"}}),
+            Some("owner/demo"),
+        );
+        assert_eq!(
+            status(&mismatch["checks"], "namespace_matches_repo").as_deref(),
+            Some("fail")
+        );
+        assert_eq!(
+            status(&mismatch["checks"], "deployment").as_deref(),
+            Some("fail")
+        );
     }
 }

@@ -26,7 +26,7 @@ const SUBPAGES: Partial<Record<SectionId, { level?: 'advanced'; id: string; labe
   network: [{ id: 'listen', label: 'menus.listen' }, { id: 'access', label: 'menus.access' }],
   security: [{ id: 'keys', label: 'menus.keys' }, { id: 'permissions', label: 'menus.security_permissions' }],
   gateway: [{ id: 'endpoint', label: 'menus.endpoint' }, { id: 'routing', label: 'menus.routing' }, { id: 'responses', label: 'menus.responses' }],
-  tools: [{ level: 'advanced', id: 'builtin', label: 'menus.builtin_tools' }, { id: 'installed', label: 'menus.installed_tools', desc: 'settings.desc_installed_tools' }],
+  tools: [{ level: 'advanced', id: 'builtin', label: 'menus.builtin_tools' }, { id: 'installed', label: 'menus.installed_tools', desc: 'settings.desc_installed_tools' }, { id: 'connectors', label: 'menus.connectors', desc: 'settings.desc_connectors' }],
   developer: [{ id: 'api', label: 'menus.control_api' }, { id: 'cli', label: 'menus.cli' }],
   diagnostics: [{ id: 'health', label: 'menus.health' }, { id: 'reports', label: 'menus.reports' }],
 };

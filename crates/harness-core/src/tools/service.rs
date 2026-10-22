@@ -210,6 +210,7 @@ impl ToolService {
                 eprintln!("[Harness Tools] installed tool {name} not loaded: {error}");
             }
             crate::automations::tools::sync(&registry);
+            crate::connectors::sync(&registry);
             ToolService::with_app_mcp(registry, LogSink::Shared)
         })
     }
