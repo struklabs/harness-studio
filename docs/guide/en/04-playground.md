@@ -250,13 +250,14 @@ VLMs with a projector support both operations. Transcription quality depends on 
 
 PDF pages with a text layer are read as text. Pages without one (scans) are turned into
 images and read by the selected model, so scanned and mixed PDFs work too. Turning pages
-into images uses the Python engine (the same environment as Hugging Face models); if it is
-not installed, Read Document says so and points to **Settings > Runtime**, and nothing is
-read in a lesser way. A request reads at most 16 PDF pages, rendered at 150 dpi; the
+into images uses the Python engine (the same environment as Hugging Face models).
+Read Document installs missing model engines automatically and retries the request.
+A request reads at most 16 PDF pages, rendered at 150 dpi; the
 environment variables `HARNESS_OCR_MAX_PAGES` (1 to 1000) and `HARNESS_OCR_DPI` (72 to 300)
 change that for the app. A Python DQA model accepts one image per question; PDF questions
-use a VLM. LayoutLM pipelines may require `pytesseract` and a separately installed
-Tesseract executable.
+use a VLM. LayoutLM models such as `impira/layoutlm-document-qa` use OCR included in the
+Python engine; no separate Tesseract installation is needed. OCR runs locally and supplies
+word positions to the question-answering model.
 
 ## Video Generation and Questions
 

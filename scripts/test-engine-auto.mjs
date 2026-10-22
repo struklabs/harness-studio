@@ -44,6 +44,7 @@ test('ensureEngine reports manual families and failed installs without falling b
 test('missingEngineFromError names the family or the managed llama.cpp build', () => {
   assert.equal(missingEngineFromError('boom: runtime.family_not_installed: whisper.cpp'), 'whisper.cpp');
   assert.equal(missingEngineFromError('runtime.not_installed'), 'llama.cpp');
+  assert.equal(missingEngineFromError('ocr.rasterizer_unavailable'), 'python-hf');
   assert.equal(missingEngineFromError('network.lan_without_key'), null);
 });
 
@@ -75,6 +76,19 @@ test('runWithEngine chains two different engines and the managed llama.cpp build
   }, d);
   assert.equal(result, 'ok');
   assert.deepEqual(d.calls, [['install', 'mlx']]);
+});
+
+test('scanned PDF retries after installing Python, then installs its VLM engine', async () => {
+  const d = deps();
+  let managed = false;
+  d.installManaged = async () => ((managed = true), d.calls.push(['managed']), true);
+  const result = await runWithEngine(async () => {
+    if (!d.installedSet.has('python-hf')) throw new Error('ocr.rasterizer_unavailable');
+    if (!managed) throw new Error('runtime.not_installed');
+    return 'page text';
+  }, d);
+  assert.equal(result, 'page text');
+  assert.deepEqual(d.calls, [['install', 'python-hf'], ['managed']]);
 });
 
 test('runWithEngine surfaces a failed install and never retries the same engine twice', async () => {

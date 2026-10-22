@@ -1,6 +1,10 @@
-//! Opt-in real document inference, no downloads in tests. Generate the PNG/PDF locally and set
+//! Opt-in real document inference, no model downloads in tests. Generate the PNG/PDF locally and set
 //! HS_OCR_IMAGE, HS_OCR_PDF, HS_TEST_MODEL, HS_TEST_MMPROJ, HS_LLAMA_SERVER and isolated
 //! HARNESS_DATA_DIR/HOME/HF_HOME/UV_CACHE_DIR/PIP_CACHE_DIR before running with --ignored.
+//! HS_OCR_SANDBOX may select a dedicated folder below the system temp directory.
+//! HS_DQA_MODEL optionally selects a local LayoutLM folder for the QA call (and installs
+//! the managed Python engine in the isolated data folder).
+//! HS_OCR_SCAN_PDF optionally adds a two-page scanned PDF (totals 42 and 84) to verify page order.
 use base64::{engine::general_purpose::STANDARD, Engine};
 use harness_core::{
     domain::{ModelDefinition, ModelRef},
@@ -18,7 +22,14 @@ async fn real_document_ocr_qa_and_pdf() {
     let path = |name| PathBuf::from(std::env::var_os(name).expect(name));
     let root = path("HARNESS_DATA_DIR");
     std::fs::create_dir_all(&root).unwrap();
-    let sandbox = std::fs::canonicalize(std::env::temp_dir().join("ocr-e2e")).unwrap();
+    let sandbox = std::fs::canonicalize(
+        std::env::var_os("HS_OCR_SANDBOX")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir().join("ocr-e2e")),
+    )
+    .unwrap();
+    let temp = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+    assert!(sandbox.starts_with(&temp) && sandbox != temp);
     for name in [
         "HARNESS_DATA_DIR",
         "HOME",
@@ -39,8 +50,8 @@ async fn real_document_ocr_qa_and_pdf() {
     settings.runtime_mode = harness_core::config::RuntimeMode::Custom;
     settings.custom_binary.binary_path = Some(path("HS_LLAMA_SERVER"));
     settings.custom_binary.is_valid = true;
-    settings.server.port = 11701;
-    settings.control_api.port = 11709;
+    settings.server.port = 12461;
+    settings.control_api.port = 12469;
     settings.save().unwrap();
     let mut def = ModelDefinition::new(
         "ocr-e2e",
@@ -57,22 +68,41 @@ async fn real_document_ocr_qa_and_pdf() {
         .save_definition(def)
         .unwrap();
     // A general VLM answers questions; OCR-specialised models only transcribe. Optional.
-    let qa_model = match (
-        std::env::var_os("HS_QA_MODEL"),
-        std::env::var_os("HS_QA_MMPROJ"),
-    ) {
-        (Some(m), Some(p)) => {
-            let mut d = ModelDefinition::new("qa-e2e", ModelRef::Local { path: m.into() });
-            d.mmproj = Some(p.into());
-            d.load.insert("context_size".into(), ParamValue::Int(8192));
-            d.load.insert("gpu_layers".into(), ParamValue::Int(0));
-            d.load.insert("threads".into(), ParamValue::Int(4));
-            harness_core::domain::store::Domain::global()
-                .save_definition(d)
-                .unwrap();
-            "qa-e2e"
+    let qa_model = if let Some(folder) = std::env::var_os("HS_DQA_MODEL") {
+        let env = harness_core::engine::python_hf::env();
+        if !harness_core::pyenv::envs::status_in(&harness_core::pyenv::envs::root(), env).ready {
+            eprintln!("installing the Python engine environment {} ...", env.name);
+            harness_core::pyenv::envs::install(env.name).await.unwrap();
         }
-        _ => "ocr-e2e",
+        let mut d = ModelDefinition::new(
+            "dqa-e2e",
+            ModelRef::Local {
+                path: folder.into(),
+            },
+        );
+        d.load.insert("threads".into(), ParamValue::Int(4));
+        harness_core::domain::store::Domain::global()
+            .save_definition(d)
+            .unwrap();
+        "dqa-e2e"
+    } else {
+        match (
+            std::env::var_os("HS_QA_MODEL"),
+            std::env::var_os("HS_QA_MMPROJ"),
+        ) {
+            (Some(m), Some(p)) => {
+                let mut d = ModelDefinition::new("qa-e2e", ModelRef::Local { path: m.into() });
+                d.mmproj = Some(p.into());
+                d.load.insert("context_size".into(), ParamValue::Int(8192));
+                d.load.insert("gpu_layers".into(), ParamValue::Int(0));
+                d.load.insert("threads".into(), ParamValue::Int(4));
+                harness_core::domain::store::Domain::global()
+                    .save_definition(d)
+                    .unwrap();
+                "qa-e2e"
+            }
+            _ => "ocr-e2e",
+        }
     };
     let registry = Arc::new(ServerRegistry::default());
     let server = GatewayServer::new();
@@ -88,8 +118,8 @@ async fn real_document_ocr_qa_and_pdf() {
             },
             &GatewaySettings {
                 enabled: true,
-                port: 11700,
-                request_timeout_secs: 180,
+                port: 12460,
+                request_timeout_secs: 600,
                 ..Default::default()
             },
         )
@@ -97,7 +127,7 @@ async fn real_document_ocr_qa_and_pdf() {
         .unwrap();
     let base = status.endpoint.unwrap().host_url;
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(240))
+        .timeout(Duration::from_secs(660))
         .no_proxy()
         .build()
         .unwrap();
@@ -110,7 +140,7 @@ async fn real_document_ocr_qa_and_pdf() {
         STANDARD.encode(std::fs::read(path("HS_OCR_PDF")).unwrap())
     );
     let mut results = Vec::new();
-    for (route, model, document, question) in [
+    let mut requests = vec![
         ("/v1/ocr", "ocr-e2e", image.clone(), None),
         (
             "/v1/document/qa",
@@ -119,7 +149,19 @@ async fn real_document_ocr_qa_and_pdf() {
             Some("What is the total?"),
         ),
         ("/v1/ocr", "ocr-e2e", pdf, None),
-    ] {
+    ];
+    if let Some(scan) = std::env::var_os("HS_OCR_SCAN_PDF") {
+        requests.push((
+            "/v1/ocr",
+            "ocr-e2e",
+            format!(
+                "data:application/pdf;base64,{}",
+                STANDARD.encode(std::fs::read(scan).unwrap())
+            ),
+            None,
+        ));
+    }
+    for (route, model, document, question) in requests {
         let mut body = json!({"model":model, "document":document});
         if let Some(q) = question {
             body["question"] = json!(q);
@@ -148,6 +190,18 @@ async fn real_document_ocr_qa_and_pdf() {
     }
     assert!(results[0].1["markdown"].as_str().unwrap().contains("42"));
     assert!(results[1].1["answer"].as_str().unwrap().contains("42"));
+    if qa_model == "dqa-e2e" {
+        assert!(results[1].1["score"].as_f64().is_some());
+    }
     assert_eq!(results[2].1["pages"][0]["source"], "pdf_text");
     assert!(results[2].1["markdown"].as_str().unwrap().contains("42"));
+    if results.len() > 3 {
+        let pages = results[3].1["pages"].as_array().unwrap();
+        assert_eq!(pages.len(), 2);
+        for (index, (page, total)) in pages.iter().zip(["42", "84"]).enumerate() {
+            assert_eq!(page["page"], index + 1);
+            assert_eq!(page["source"], "vlm");
+            assert!(page["markdown"].as_str().unwrap().contains(total));
+        }
+    }
 }

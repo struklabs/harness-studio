@@ -199,6 +199,7 @@ class Model:
         self.exit_on_error = False
         self.pipe = None
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
+        self.document_ocr = None  # LayoutLM word/box preprocessing, loaded only for DQA
         self.ct2 = None  # faster-whisper WhisperModel, when the folder is a CTranslate2 Whisper export
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
         self.loaded_at = None
@@ -339,6 +340,18 @@ class Model:
                     dtype=self.dtype(),
                     trust_remote_code=trust,
                 )  # offline: HF_HUB_OFFLINE=1 in the environment
+                if task == "document-question-answering" and self.pipe.model.config.model_type != "vision-encoder-decoder":
+                    # LayoutLM needs words and normalized boxes. The wheel includes its OCR
+                    # weights, so this works offline without a system Tesseract installation.
+                    from rapidocr_onnxruntime import RapidOCR
+
+                    self.document_ocr = RapidOCR(
+                        intra_op_num_threads=self.args.threads or 4,
+                        inter_op_num_threads=1,
+                    )
+                    for processor in (self.pipe.image_processor, self.pipe.feature_extractor):
+                        if processor is not None and hasattr(processor, "apply_ocr"):
+                            processor.apply_ocr = False
             self.state = "ok"
             self.loaded_at = int(time.time())
             log(f"ready: {task} {folder} on {self.device()}")
@@ -852,6 +865,37 @@ class NativeRunner:
 # --- task runners ----------------------------------------------------------------------------
 
 
+def document_word_boxes(ocr, image):
+    """Convert OCR polygons to LayoutLM's 0..1000 boxes, keeping reading order."""
+    import numpy as np
+
+    result, _ = ocr(np.asarray(image.convert("RGB")))
+    width, height = image.size
+    words = []
+    for polygon, text, _score in result or []:
+        if not text.strip():
+            continue
+        xs, ys = zip(*polygon)
+        box = [
+            max(0, min(1000, int(min(xs) * 1000 / width))),
+            max(0, min(1000, int(min(ys) * 1000 / height))),
+            max(0, min(1000, int(max(xs) * 1000 / width))),
+            max(0, min(1000, int(max(ys) * 1000 / height))),
+        ]
+        # RapidOCR recognizes lines; LayoutLM's tokenizer expects individual words.
+        tokens = text.split()
+        total = max(1, len(text))
+        offset = 0
+        for token in tokens:
+            start = text.find(token, offset)
+            end = start + len(token)
+            left = box[0] + (box[2] - box[0]) * start // total
+            right = box[0] + (box[2] - box[0]) * end // total
+            words.append((token, [left, box[1], right, box[3]]))
+            offset = end
+    return words
+
+
 def run_hf(model: Model, body: dict, raw: bytes | None):
     """POST /hf: the Hugging Face Inference API request and response shapes."""
     task = model.args.task
@@ -889,6 +933,11 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if task == "document-question-answering":
             q = inputs.get("question") if isinstance(inputs, dict) else params.pop("question", None)
             img = to_image(inputs["image"] if isinstance(inputs, dict) else inputs)
+            if getattr(model, "document_ocr", None) is not None and "word_boxes" not in params:
+                words = document_word_boxes(model.document_ocr, img)
+                if not words:
+                    return [{"answer": "", "score": 0.0}]
+                return jsonable(pipe(image=img, question=q, word_boxes=words, **params))
             return jsonable(pipe(image=img, question=q, **params))
         img = to_image(inputs)
         if task in ("zero-shot-image-classification",):

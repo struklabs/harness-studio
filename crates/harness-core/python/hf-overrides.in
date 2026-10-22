@@ -1,3 +1,6 @@
 # num2words only uses docopt for its CLI. docopt-ng provides that module as a wheel.
 # Exclude source-only docopt from the managed environment.
 docopt; python_version < '0'
+
+# RapidOCR imports cv2 only; the headless wheel supplies the same API without libGL/X11.
+opencv-python; python_version < '0'

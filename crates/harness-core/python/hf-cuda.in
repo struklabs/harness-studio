@@ -20,5 +20,7 @@ num2words
 docopt-ng  # wheel-only replacement for num2words CLI dependency docopt
 faster-whisper
 pypdfium2
+rapidocr-onnxruntime==1.4.4  # bundled OCR models for LayoutLM; no system Tesseract required
+opencv-python-headless  # cv2 without Linux desktop display-library dependencies
 trl
 bitsandbytes
