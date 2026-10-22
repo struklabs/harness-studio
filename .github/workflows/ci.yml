@@ -71,8 +71,9 @@ jobs:
           set -euo pipefail
           log_opts='--all --full-history'
           if [ "$EVENT" = pull_request ] || [ "$EVENT" = push ]; then
-            [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            # Explicit exits: bash before 4.1 (macOS) does not stop on a failed [[ ]] under set -e.
+            [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
             if [ "$BASE_SHA" = 0000000000000000000000000000000000000000 ] && [ "$EVENT" = push ]; then
               # A new main branch has no previous tip: scan all ancestors of its head.
               log_opts="$HEAD_SHA"
