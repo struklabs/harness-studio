@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process';
 
 // Every scripts/test-*.mjs runs in CI: listed by name in an npm script or in a workflow.
 test('every node test script is listed where CI runs it', () => {
-  const listed = readFileSync('package.json', 'utf8') + readFileSync('.github/workflows/ci.yml', 'utf8');
+  const { scripts } = JSON.parse(readFileSync('package.json', 'utf8'));
+  const listed = Object.values(scripts).join('\n') + '\n' + readFileSync('.github/workflows/ci.yml', 'utf8');
   const missing = readdirSync('scripts')
     .filter((f) => /^test-.*\.mjs$/.test(f))
     .filter((f) => !listed.includes(`scripts/${f}`));
