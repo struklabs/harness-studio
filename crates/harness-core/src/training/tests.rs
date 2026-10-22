@@ -33,6 +33,7 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
         eval_loss: None,
         checkpoint_step: None,
         training: true,
+        installing_engine: false,
         training_since: None,
         training_from_step: 0,
         error: None,
@@ -317,4 +318,42 @@ print("ok")
         return;
     };
     assert!(ok, "{text}");
+}
+
+#[test]
+fn engine_install_start_and_end_publish_at_once() {
+    let _guard = LIFECYCLE.lock().unwrap();
+    let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
+    let dir = job_dir(id);
+    std::fs::create_dir_all(&dir).unwrap();
+    store().lock().unwrap().push(Entry {
+        job: sample(id, TrainingStatus::Queued),
+        soft: Arc::default(),
+        hard: Arc::default(),
+        last_emit: Instant::now(),
+        last_save: Instant::now(),
+    });
+    let mut rx = events::subscribe();
+    for (step, installing) in [(6, true), (6, false)] {
+        update(id, |j| {
+            j.step = step;
+            j.installing_engine = installing;
+        });
+        loop {
+            let event = rx.try_recv().unwrap();
+            if let CoreEvent::Training { job } = event {
+                if job.id == id {
+                    assert_eq!(job.step, step);
+                    assert_eq!(job.installing_engine, installing);
+                    break;
+                }
+            }
+        }
+    }
+    update(id, |j| j.status = TrainingStatus::Done);
+    let persisted: TrainingJob =
+        serde_json::from_slice(&std::fs::read(dir.join("job.json")).unwrap()).unwrap();
+    assert_eq!(persisted.status, TrainingStatus::Done);
+    store().lock().unwrap().retain(|e| e.job.id != id);
+    std::fs::remove_dir_all(dir).unwrap();
 }

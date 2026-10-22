@@ -9960,6 +9960,72 @@ mod refusal_reason_tests {
     }
 
     #[test]
+    fn smolvlm_video_metadata_and_folder_download_keep_all_companions() {
+        use crate::hub_compat::{Compatibility, ModelFormat};
+        use crate::model_registry::Capability::{Chat, Video, Vision};
+        let repo = "mlx-community/SmolVLM2-256M-Video-Instruct-mlx";
+        let names = [
+            "config.json",
+            "model.safetensors",
+            "model.safetensors.index.json",
+            "processor_config.json",
+            "preprocessor_config.json",
+            "chat_template.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "README.md",
+        ];
+        let item = serde_json::json!({
+            "id": repo, "library_name": "transformers", "pipeline_tag": "video-text-to-text",
+            "tags": ["mlx", "smolvlm", "image-text-to-text", "video-text-to-text"],
+            "config": {"model_type": "smolvlm", "architectures": ["SmolVLMForConditionalGeneration"]},
+            "siblings": names.iter().map(|name| serde_json::json!({"rfilename": name})).collect::<Vec<_>>()
+        });
+        let listed = parse_search_item(&item).unwrap();
+        assert_eq!(listed.format, ModelFormat::Mlx);
+        assert_eq!(listed.capabilities, vec![Chat, Vision, Video]);
+        if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+            assert!(
+                matches!(listed.compatibility, Compatibility::Runnable { ref runtime }
+                | Compatibility::NeedsRuntime { ref runtime } if runtime == "mlx-vlm")
+            );
+            assert!(listed.not_runnable.is_none());
+        }
+        let files: Vec<_> = names
+            .iter()
+            .map(|name| serde_json::json!({"path": name, "size": 10}))
+            .collect();
+        let variants = safetensors_variants(repo, &files).unwrap();
+        assert_eq!(variants.len(), 1);
+        assert_eq!(variants[0].shards.len(), names.len());
+        assert_eq!(variants[0].total_size_bytes, 10 * names.len() as u64);
+        assert!(variants[0].not_runnable.is_none());
+        for name in names {
+            let shard = variants[0]
+                .shards
+                .iter()
+                .find(|shard| shard.filename == name)
+                .unwrap();
+            assert_eq!(
+                shard.download_url,
+                DownloadManager::hf_file_url(repo, "resolve", name)
+                    .unwrap()
+                    .to_string()
+            );
+        }
+        let gguf = parse_search_item(&serde_json::json!({
+            "id": "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF",
+            "pipeline_tag": "image-text-to-text", "tags": ["gguf", "smolvlm"],
+            "siblings": [{"rfilename": "SmolVLM2-Q8_0.gguf"}, {"rfilename": "mmproj.gguf"}]
+        }))
+        .unwrap();
+        assert_eq!(gguf.capabilities, vec![Chat, Vision, Video]);
+        assert!(
+            matches!(gguf.compatibility, Compatibility::Runnable { ref runtime } if runtime == "llama.cpp")
+        );
+    }
+
+    #[test]
     fn core_ml_and_mlx_repos_are_apple_only_off_macos() {
         if cfg!(target_os = "macos") {
             return;

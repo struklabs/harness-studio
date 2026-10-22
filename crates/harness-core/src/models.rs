@@ -478,6 +478,17 @@ fn image_aware_kind(path: &Path, metadata: Option<&GgufMetadata>) -> crate::doma
     }
 }
 
+/// Display label written by training exports; filenames and serving aliases stay stable.
+fn training_display_name(dir: &Path) -> Option<String> {
+    let meta: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("harness-training.json")).ok()?).ok()?;
+    meta.get("name")?
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+}
+
 /// Name and "quantization" of an image checkpoint file: the stem, and a precision token of its
 /// name (`fp16`, `fp8`, `bf16`) or the container (`SAFETENSORS`, `CKPT`).
 fn image_file_traits(filename: &str) -> (String, String) {
@@ -598,6 +609,13 @@ impl ModelManager {
             models.extend(crate::engine::mlx::library_models_in(dir, &tree));
         }
         models.retain(|m| !is_diffusers_component(&m.path));
+        for model in &mut models {
+            if model.path.is_dir() {
+                if let Some(name) = training_display_name(&model.path) {
+                    model.name = name;
+                }
+            }
+        }
         models.sort_by(|a, b| a.name.cmp(&b.name));
         models
     }
@@ -992,6 +1010,23 @@ impl ModelManager {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn training_metadata_keeps_the_chosen_display_name() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(training_display_name(root.path()), None);
+        fs::write(
+            root.path().join("harness-training.json"),
+            r#"{"name":"Hello Harness Qwen"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            training_display_name(root.path()).as_deref(),
+            Some("Hello Harness Qwen")
+        );
+        fs::write(root.path().join("harness-training.json"), r#"{"name":" "}"#).unwrap();
+        assert_eq!(training_display_name(root.path()), None);
+    }
 
     #[test]
     fn test_split_gguf_grouping() {

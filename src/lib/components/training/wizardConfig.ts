@@ -308,3 +308,8 @@ export function showsTorchEnv(devices: readonly string[] | undefined, env: { ins
   const mlxDefault = !!devices?.includes('mlx') && !devices.includes('cuda');
   return !mlxDefault || !!env?.installed || installing;
 }
+
+/** Matches the backend's default: MLX handles quantized MLX and plain safetensors on Apple Silicon. */
+export function preferredDevice(devices: readonly TrainingDevice[]): TrainingDevice {
+  return (['cuda', 'mlx', 'mps'] as const).find(d => devices.includes(d)) ?? 'cpu';
+}

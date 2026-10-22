@@ -29,6 +29,7 @@
     buildRequest,
     changedFields,
     defaultState,
+    preferredDevice,
     effectiveBatch,
     parseRecipe,
     presetFields,
@@ -101,6 +102,7 @@
   );
   let shownModels = $derived(models.filter((m) => m.name.toLowerCase().includes(modelFilter.trim().toLowerCase())));
 
+  let deviceInitialized = $state(false);
   let compat = $derived(training.compat);
   let devices = $derived<TrainingDevice[]>(compat?.devices?.length ? compat.devices : ['cpu']);
   let qlora = $derived(compat?.methods.find((m) => m.method === 'qlora') ?? null);
@@ -108,7 +110,11 @@
   let unavailable = $derived((compat?.methods ?? []).filter((m) => m.method === 'full' || m.method === 'dpo'));
 
   $effect(() => {
-    if (!devices.includes(s.device)) s.device = (['cuda', 'mlx', 'mps'] as const).find((d) => devices.includes(d)) ?? 'cpu';
+    // Pick once hardware arrives; later explicit device choices stay in place.
+    if (compat && !deviceInitialized) {
+      s.device = preferredDevice(devices);
+      deviceInitialized = true;
+    } else if (!devices.includes(s.device)) s.device = preferredDevice(devices);
   });
   $effect(() => {
     if (methodChoice === 'qlora' && (qloraBlocked || !devices.includes('cuda'))) methodChoice = 'auto';
@@ -135,6 +141,7 @@
     recipeText = '';
     methodChoice = 'auto';
     s = defaultState();
+    deviceInitialized = false;
   }
 
   // New data or a different model needs fresh presets.
@@ -172,6 +179,7 @@
       return;
     }
     s = r.state;
+    deviceInitialized = true;
     methodChoice = s.method;
     presetSet = null;
     recipeText = '';

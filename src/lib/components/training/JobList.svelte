@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fixed } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { Play, Square, RotateCcw, PackageOpen, Trash2, Pencil, Copy } from '@lucide/svelte';
   import { t, locale } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
@@ -104,7 +104,7 @@
           {:else}
             <span class="min-w-0 flex-1 truncate text-sm font-medium">{job.config.name}</span>
           {/if}
-          <span class="rounded-full px-2 py-0.5 text-xs font-medium {STATUS_CLASS[job.status]}">{job.paused && job.status === 'cancelled' ? t('training.paused') : job.paused && job.status === 'running' ? t('training.pausing') : t(STATUS_KEY[job.status])}</span>
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium {STATUS_CLASS[job.status]}">{job.installing_engine ? t('training.installing_engine') : job.paused && job.status === 'cancelled' ? t('training.paused') : job.paused && job.status === 'running' ? t('training.pausing') : t(STATUS_KEY[job.status])}</span>
         </div>
         <p class="text-xs text-muted-foreground">
           {t(`training.method_${job.config.method}` as TKey)} · {t(`training.device_${job.config.device}` as TKey)}
@@ -113,6 +113,16 @@
         </p>
 
         {#if renaming === job.id && renameError}<p class="text-xs text-destructive" role="alert">{renameError}</p>{/if}
+
+        {#if job.installing_engine && training.engineProgress}
+          {@const progress = training.engineProgress}
+          <Progress value={progress.total_bytes > 0 ? Math.min(100, progress.downloaded_bytes / progress.total_bytes * 100) : 0} />
+          <p class="text-xs text-muted-foreground" role="status">
+            {t(`training.env_step_${progress.step}` as TKey)}
+            {#if progress.total_bytes > 0}· {formatBytes(progress.downloaded_bytes, 1)} / {formatBytes(progress.total_bytes, 1)}{/if}
+            {#if progress.detail}· {progress.detail}{/if}
+          </p>
+        {/if}
 
         {#if job.status !== 'draft'}
           <div class="flex flex-col gap-1">

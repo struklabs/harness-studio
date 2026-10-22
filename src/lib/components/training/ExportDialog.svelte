@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { toast } from 'svelte-sonner';
   import { t } from '#lib/i18n.svelte.js';
   import { training } from '#lib/stores/training.svelte.js';
   import type { TrainingJob, TrainingQuant } from '#lib/training-types.js';
@@ -40,7 +41,10 @@
     if (!request) { busy = false; return; }
     const done = await training.exportJob(job.id, request);
     busy = false;
-    if (done) onClose();
+    if (done) {
+      toast.success(t('training.export_started'));
+      onClose();
+    }
   }
 </script>
 

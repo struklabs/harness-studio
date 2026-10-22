@@ -1,3 +1,5 @@
+import { toast } from 'svelte-sonner';
+import { t } from '#lib/i18n.svelte.js';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '#lib/ipc.js';
 import { localizeError } from '#lib/network.js';
@@ -10,6 +12,7 @@ import type {
   TrainingJob,
   TrainingMetric,
 } from '#lib/training-types.js';
+import type { PythonEnvStatus } from '#lib/types.js';
 import { library } from '#lib/stores/library.svelte.js';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 
@@ -27,6 +30,7 @@ export class TrainingStore {
   env = $state<TrainingEnvStatus | null>(null);
   installing = $state(false);
   installError = $state<string | null>(null);
+  engineProgress = $state<PythonEnvStatus['progress']>(null);
   compat = $state<TrainingCompatibility | null>(null);
   selectedId = $state<number | null>(null);
   metrics = $state<TrainingMetric[]>([]);
@@ -70,6 +74,8 @@ export class TrainingStore {
     } catch {
       return;
     }
+    if (list.some(j => j.installing_engine)) void this.refreshEngineProgress();
+    else this.engineProgress = null;
     const json = JSON.stringify(list);
     if (json === this.json) return;
     if (list.some((job) => job.export?.dir && job.export.status !== 'running'
@@ -77,9 +83,22 @@ export class TrainingStore {
       library.markChanged();
       void library.refresh();
     }
+    for (const job of list) {
+      const old = this.jobs.find(j => j.id === job.id);
+      if (old?.export?.status === 'running' && job.export?.status === 'done') toast.success(t('training.export_done_toast'));
+    }
     this.json = json;
     this.jobs = list;
     if (this.selectedId !== null && !list.some((j) => j.id === this.selectedId)) this.select(null);
+  }
+
+  private async refreshEngineProgress() {
+    try {
+      const envs = await invoke<PythonEnvStatus[]>('list_python_envs');
+      if (this.jobs.some(j => j.installing_engine)) this.engineProgress = envs.find(e => e.name === 'mlx')?.progress ?? null;
+    } catch {
+      // The install label remains visible if progress is unavailable.
+    }
   }
 
   async refreshEnv() {

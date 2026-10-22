@@ -280,7 +280,36 @@ async fn do_export(
             }
         }
     }
+    if !adapter_only {
+        let mut paths = vec![target];
+        paths.extend(info.ggufs.iter().map(PathBuf::from));
+        register_models(&crate::domain::store::Domain::global(), &paths, &name)?;
+    }
     Ok(info)
+}
+
+/// Register merged weights through the same domain rules as downloaded models.
+fn register_models(
+    domain: &crate::domain::store::Domain,
+    paths: &[PathBuf],
+    name: &str,
+) -> Result<(), String> {
+    use crate::domain::{unique_alias, ModelDefinition, ModelRef};
+    for path in paths {
+        let defs = domain.definitions()?;
+        if defs
+            .iter()
+            .any(|d| d.base.local_path() == Some(path.as_path()))
+        {
+            continue;
+        }
+        let alias = unique_alias(name, defs.iter().map(|d| d.alias.as_str()));
+        domain.save_definition(ModelDefinition::new(
+            alias,
+            ModelRef::Local { path: path.clone() },
+        ))?;
+    }
+    Ok(())
 }
 
 fn copy_adapter(source: &Path, target: &Path) -> Result<(), String> {
@@ -392,6 +421,24 @@ async fn convert_gguf(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn merged_exports_register_unique_serving_aliases_idempotently() {
+        let root = tempfile::tempdir().unwrap();
+        let domain = crate::domain::store::Domain::at(root.path());
+        let folder = root.path().join("hello-harness-qwen");
+        let gguf = root.path().join("hello-harness-qwen-Q8_0.gguf");
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(gguf.clone(), b"weights").unwrap();
+        let paths = [folder.clone(), gguf];
+        register_models(&domain, &paths, "hello-harness-qwen").unwrap();
+        register_models(&domain, &paths, "hello-harness-qwen").unwrap();
+        let defs = domain.definitions().unwrap();
+        assert_eq!(defs.len(), 2);
+        assert_eq!(defs[0].alias, "hello-harness-qwen");
+        assert_eq!(defs[0].base.local_path(), Some(folder.as_path()));
+        assert_eq!(defs[1].alias, "hello-harness-qwen-2");
+    }
+
     #[test]
     fn mlx_adapter_copy_takes_its_own_weights_file() {
         let root = tempfile::tempdir().unwrap();

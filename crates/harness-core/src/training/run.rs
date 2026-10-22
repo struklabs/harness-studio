@@ -213,6 +213,7 @@ pub(super) async fn drive(id: u64, resume: bool) {
     let checkpoint = latest_checkpoint(&dir);
     update(id, |j| {
         j.training = false;
+        j.installing_engine = false;
         j.finished_at = Some(now);
         j.checkpoint_step = checkpoint;
         match &result {
@@ -252,7 +253,15 @@ async fn run(
     cancelled()?;
     if job.config.device == Device::Mlx {
         // Not raced against a cancel: an install stopped halfway would be redone from scratch.
-        ensure_mlx(&dir).await?;
+        let installing = crate::engine::mlx::binary().is_err();
+        if installing {
+            update(id, |j| j.installing_engine = true);
+        }
+        let installed = ensure_mlx(&dir).await;
+        if installing {
+            update(id, |j| j.installing_engine = false);
+        }
+        installed?;
         cancelled()?;
     }
     let gpu_bytes = if job.config.device.holds_gpu_memory() {

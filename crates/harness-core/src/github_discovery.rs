@@ -147,6 +147,13 @@ impl Github {
                 .num("seconds", until.saturating_sub(now()))
                 .into());
         }
+        if response.status() == 404
+            && path
+                .strip_prefix("/repos/")
+                .is_some_and(|repo| repo.split('/').count() == 2)
+        {
+            return Err(err("ghdisc.repo_not_found").into());
+        }
         if !response.status().is_success() {
             return Err(err("ghdisc.http")
                 .num("status", response.status().as_u16())
@@ -1201,6 +1208,36 @@ mod tests {
         }
         assert!(gh.get("/search/repositories?q=demo").await.is_err());
     }
+    #[tokio::test]
+    async fn repository_lookup_not_found_has_a_specific_error() {
+        for (status, path, key) in [
+            (
+                "404 Not Found",
+                "/repos/struklabs/no-such-repo-zz9",
+                "ghdisc.repo_not_found",
+            ),
+            (
+                "500 Internal Server Error",
+                "/repos/owner/demo",
+                "ghdisc.http",
+            ),
+            (
+                "404 Not Found",
+                "/repos/owner/demo/releases/latest",
+                "ghdisc.http",
+            ),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let gh = mock(status, "", "{}", temp.path()).await;
+            let error = gh.get(path).await.unwrap_err();
+            assert_eq!(crate::error_key::parse(&error).unwrap().0, key);
+            assert_eq!(
+                is_not_found(&error),
+                key == "ghdisc.http" && status.starts_with("404")
+            );
+        }
+    }
+
     #[tokio::test]
     async fn mocked_rate_limit_persists_across_queries() {
         let temp = tempfile::tempdir().unwrap();

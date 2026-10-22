@@ -34,3 +34,8 @@ test('failed GGUF export can be retried, but running export and training cannot 
   job.checkpoint_step = null;
   assert.equal(canExport(job), false);
 });
+
+test('export admission gives immediate visible feedback', () => {
+  const dialog = readFileSync(new URL('../src/lib/components/training/ExportDialog.svelte', import.meta.url), 'utf8');
+  assert.match(dialog, /toast.success\(t\('training.export_started'\)\)/);
+});
