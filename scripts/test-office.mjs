@@ -46,6 +46,8 @@ test('navigation is advanced, 3D is separately loaded and hidden frames are canc
   assert.match(read('../src/lib/office/isometric.ts'),/if\(!active\)\{cancelAnimationFrame\(frame\);return;/);
   // A deep $state proxy cannot be structuredClone'd by the editor, so "Discard Changes" would silently fail.
   assert.match(read('../src/lib/components/AgentOffice.svelte'),/pendingLoad=\$state\.raw</);
+  // A rejected bounds edit (an overlap) puts the room's real value back in the field.
+  assert.match(read('../src/lib/components/AgentOffice.svelte'),/bounds\(k,Number\(el\.value\)\);if\(item\)el\.value=String\(item\[k\]\)/);
 });
 test('every built-in room name has a translated label', async () => {
   const { default: { tr, en } } = await import('../src/lib/locales/office.ts');
