@@ -561,7 +561,8 @@ pub async fn python_version(python: &Path) -> String {
 
 /// Environment variables of every Python run: nothing from the user's site-packages, UTF-8
 /// everywhere, no network for the Hub (models are local folders), and a private Hugging Face
-/// cache under `hf_home_parent`.
+/// cache under `hf_home_parent`. Matplotlib draws off screen (`Agg`): its macOS backend would
+/// otherwise put a Python icon in the Dock.
 pub fn python_env(hf_home_parent: &Path) -> Vec<(&'static str, std::ffi::OsString)> {
     vec![
         ("PYTHONNOUSERSITE", "1".into()),
@@ -574,12 +575,19 @@ pub fn python_env(hf_home_parent: &Path) -> Vec<(&'static str, std::ffi::OsStrin
         ("HF_HOME", hf_home_parent.join("hf-home").into()),
         ("TOKENIZERS_PARALLELISM", "false".into()),
         ("NO_COLOR", "1".into()),
+        ("MPLBACKEND", "Agg".into()),
     ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn python_runs_draw_matplotlib_off_screen() {
+        let env = python_env(Path::new("/x"));
+        assert!(env.iter().any(|(k, v)| *k == "MPLBACKEND" && v == "Agg"));
+    }
 
     #[test]
     fn zip_binary_extraction_rejects_symlinks() {

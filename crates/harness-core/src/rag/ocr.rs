@@ -197,6 +197,7 @@ fn run_script(
         .arg(pages)
         .env("PYTHONNOUSERSITE", "1")
         .env("PYTHONIOENCODING", "utf-8")
+        .env("MPLBACKEND", "Agg")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
