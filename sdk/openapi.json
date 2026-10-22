@@ -4078,6 +4078,485 @@
         }
       }
     },
+    "/api/harness/v1/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "list_devices",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/audit": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "The pairing audit log, newest first.",
+        "operationId": "audit",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most this many entries (default 100, max 1000)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/revoke-all": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Lost-phone recovery: unpairs every device and cancels open offers and pending claims.",
+        "operationId": "revoke_all",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedAll"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/roles": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Roles and the components each one needs.",
+        "operationId": "roles",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/settings": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Pairing settings: the signaling endpoint (empty = off).",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "put_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairingSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/suggest": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Whether this computer can run a model of `required_bytes`, and if not, which paired\ndevices could.",
+        "operationId": "suggest",
+        "parameters": [
+          {
+            "name": "required_bytes",
+            "in": "query",
+            "description": "Memory the model needs",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Suggestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/devices/{id}": {
+      "delete": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Unpairs a device; its token stops working at once.",
+        "operationId": "revoke_device",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "update_device",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/downloads": {
       "get": {
         "tags": [
@@ -8363,6 +8842,481 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/connect": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Starts pairing this computer with another Harness host. Show `verification` to the\nowner of that host, then call `/pairing/connect/poll`.",
+        "operationId": "connect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientClaim"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/connect/poll": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Checks whether the other host approved; when it did, saves the token as a remote link\nand returns an `opencode.json` block for that Gateway.",
+        "operationId": "connect_poll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectPollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectProgress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/offers": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Open offers (the codes are only returned at creation).",
+        "operationId": "list_offers",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OfferInfo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "create_offer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/offers/{id}": {
+      "delete": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "cancel_offer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/pending": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Claims waiting for approval (device name, verification code).",
+        "operationId": "pending",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingClaim"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/pending/{id}/approve": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Approves a pending claim: the scoped token is created and handed to the device on its\nnext poll.",
+        "operationId": "approve",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/pairing/pending/{id}/deny": {
+      "post": {
+        "tags": [
+          "devices"
+        ],
+        "operationId": "deny",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -14980,6 +15934,15 @@
   },
   "components": {
     "schemas": {
+      "AccessPreset": {
+        "type": "string",
+        "description": "What a device may do with its token.",
+        "enum": [
+          "chat_only",
+          "gateway_models",
+          "admin"
+        ]
+      },
       "ActiveServerInfo": {
         "type": "object",
         "description": "What the UI and telemetry need to talk to the running server.",
@@ -15274,6 +16237,43 @@
           "confirm": {
             "type": "boolean",
             "description": "Must be `true`: writing to n8n is a deliberate act."
+          }
+        }
+      },
+      "AuditEntry": {
+        "type": "object",
+        "description": "One audit log line.",
+        "required": [
+          "at",
+          "event"
+        ],
+        "properties": {
+          "at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "event": {
+            "type": "string",
+            "description": "`offer_created`, `claim_failed`, `claim_pending`, `approved`, `denied`, `revoked`,\n`revoke_all`, `token_removed`, `access_changed`."
+          },
+          "device_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -16209,6 +17209,46 @@
           "deny"
         ]
       },
+      "ClaimState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "denied",
+          "expired"
+        ]
+      },
+      "ClientClaim": {
+        "type": "object",
+        "description": "A claim in progress on a remote host.",
+        "required": [
+          "base_url",
+          "claim_id",
+          "poll_secret",
+          "verification",
+          "allow_insecure_http"
+        ],
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "description": "Validated address of the host (no `/v1`)."
+          },
+          "claim_id": {
+            "type": "string"
+          },
+          "poll_secret": {
+            "type": "string",
+            "description": "Kept by the claiming side only."
+          },
+          "verification": {
+            "type": "string",
+            "description": "Shown here and on the host's prompt; the owner compares them."
+          },
+          "allow_insecure_http": {
+            "type": "boolean"
+          }
+        }
+      },
       "ClientEndpoint": {
         "type": "object",
         "description": "An OpenAI/Anthropic-compatible address for clients.",
@@ -16739,6 +17779,89 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "ConnectPollRequest": {
+        "type": "object",
+        "required": [
+          "claim",
+          "link_name"
+        ],
+        "properties": {
+          "claim": {
+            "$ref": "#/components/schemas/ClientClaim"
+          },
+          "link_name": {
+            "type": "string",
+            "description": "Name of the remote link to create (lowercase letters, digits, dashes)."
+          }
+        }
+      },
+      "ConnectProgress": {
+        "type": "object",
+        "description": "Progress of connecting this computer to another host.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ClaimState"
+          },
+          "connected": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Connected"
+              }
+            ]
+          }
+        }
+      },
+      "ConnectRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "code",
+          "device_name"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The other Harness host (`http://192.168.1.20:11435`; no `/v1` needed)."
+          },
+          "code": {
+            "type": "string",
+            "description": "The code its owner created."
+          },
+          "device_name": {
+            "type": "string",
+            "description": "How this computer is called on that host."
+          },
+          "allow_insecure_http": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Connected": {
+        "type": "object",
+        "description": "What a finished pairing leaves behind.",
+        "required": [
+          "link_id",
+          "link_name",
+          "opencode_config"
+        ],
+        "properties": {
+          "link_id": {
+            "type": "string"
+          },
+          "link_name": {
+            "type": "string"
+          },
+          "opencode_config": {
+            "description": "`opencode.json` block for the paired Gateway (the token comes from\n`HARNESS_REMOTE_TOKEN`; it is not written into the config)."
           }
         }
       },
@@ -18450,6 +19573,245 @@
                 "$ref": "#/components/schemas/SplitSuggestion"
               }
             ]
+          }
+        }
+      },
+      "DeviceRole": {
+        "type": "string",
+        "description": "What a paired device does for this computer.",
+        "enum": [
+          "inference_host",
+          "client",
+          "storage"
+        ]
+      },
+      "DeviceSelfReport": {
+        "type": "object",
+        "description": "What a device reports about itself (`POST /v1/harness/device/report`). Informational:\nnothing here grants access.",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Installed components (see [`DeviceRole::components`]).",
+            "default": []
+          },
+          "disk_total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null,
+            "minimum": 0
+          },
+          "disk_free_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null,
+            "minimum": 0
+          },
+          "ram_total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null,
+            "minimum": 0
+          },
+          "vram_total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null,
+            "minimum": 0
+          },
+          "vram_free_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null,
+            "minimum": 0
+          },
+          "running_servers": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0,
+            "minimum": 0
+          },
+          "queued_requests": {
+            "type": "integer",
+            "format": "int32",
+            "default": 0,
+            "minimum": 0
+          },
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where other devices reach its gateway (`http://192.168.1.20:11434`).",
+            "default": null
+          }
+        }
+      },
+      "DeviceUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeviceRole"
+              }
+            ]
+          },
+          "preset": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AccessPreset",
+                "description": "Changes the access; `models` then replaces the allowed model patterns."
+              }
+            ]
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acknowledge_admin": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeviceView": {
+        "type": "object",
+        "description": "A paired device as the Devices page shows it.",
+        "required": [
+          "id",
+          "name",
+          "platform",
+          "role",
+          "preset",
+          "created_at",
+          "reachability",
+          "scopes",
+          "endpoints",
+          "models",
+          "components",
+          "missing_components"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/AccessPreset"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "last_seen": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "reachability": {
+            "$ref": "#/components/schemas/Reachability"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scope"
+            },
+            "description": "Control API scopes of its token."
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GatewayEndpoint"
+            },
+            "description": "Gateway endpoint groups of its token (empty = all)."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Allowed model patterns (empty = every model)."
+          },
+          "report": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeviceSelfReport"
+              }
+            ]
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Components its role needs."
+          },
+          "missing_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Components of its role it did not report as installed."
           }
         }
       },
@@ -21417,6 +22779,41 @@
               "null"
             ],
             "description": "SHA-256 of the file as published by Hugging Face (LFS oid), when known."
+          }
+        }
+      },
+      "HostSuggestion": {
+        "type": "object",
+        "description": "A device that could run a model this computer cannot.",
+        "required": [
+          "device_id",
+          "name",
+          "available_bytes",
+          "missing_components",
+          "reachability"
+        ],
+        "properties": {
+          "device_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "available_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Memory it reported free for a model (free VRAM, else its RAM).",
+            "minimum": 0
+          },
+          "missing_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Components to install for the role it will play (only those it lacks)."
+          },
+          "reachability": {
+            "$ref": "#/components/schemas/Reachability"
           }
         }
       },
@@ -25676,6 +27073,105 @@
           }
         }
       },
+      "OfferCreated": {
+        "type": "object",
+        "description": "A new offer with where to reach this computer's gateway.",
+        "required": [
+          "offer",
+          "pair_urls",
+          "reachable_from_lan"
+        ],
+        "properties": {
+          "offer": {
+            "$ref": "#/components/schemas/OfferInfo"
+          },
+          "pair_urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Links the phone can open (`http://192.168.1.20:11435/m#code=1234-5678`); one per LAN\naddress when the gateway listens on the network, else the loopback link."
+          },
+          "reachable_from_lan": {
+            "type": "boolean",
+            "description": "The gateway runs and accepts connections from other devices."
+          }
+        }
+      },
+      "OfferInfo": {
+        "type": "object",
+        "description": "A fresh offer: the only time its code is returned.",
+        "required": [
+          "id",
+          "code",
+          "role",
+          "preset",
+          "models",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "`1234-5678` (empty in listings)."
+          },
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/AccessPreset"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "OfferSpec": {
+        "type": "object",
+        "description": "What the owner decides when creating an offer.",
+        "required": [
+          "role",
+          "preset"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/AccessPreset"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Allowed model patterns (empty = every model)."
+          },
+          "ttl_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Seconds the code stays valid (default 300, at most 900).",
+            "minimum": 0
+          },
+          "acknowledge_admin": {
+            "type": "boolean",
+            "description": "Required for the `admin` preset."
+          }
+        }
+      },
       "OfficeCharacter": {
         "type": "object",
         "description": "Summary fields only. Prompts and output are available through the privileged run detail.",
@@ -26165,6 +27661,17 @@
           }
         }
       },
+      "PairingSettings": {
+        "type": "object",
+        "description": "Pairing settings (`config/pairing_settings.json`).",
+        "properties": {
+          "signaling_endpoint": {
+            "type": "string",
+            "description": "Address of a signaling (and optional relay) service for pairing across networks.\nEmpty = off: no host is built in and nothing is contacted.",
+            "default": ""
+          }
+        }
+      },
       "ParamInfo": {
         "type": "object",
         "required": [
@@ -26309,6 +27816,57 @@
               "type": "string"
             },
             "description": "Split view: one variant id per comparison group of this message (the side-`a` variant),\noldest group first. More than one group means the turn was regenerated; the shown\ngroup is the one `compare` belongs to. Empty when the message has no comparison."
+          }
+        }
+      },
+      "PendingClaim": {
+        "type": "object",
+        "description": "A claim waiting for the owner (the approval prompt).",
+        "required": [
+          "id",
+          "name",
+          "platform",
+          "role",
+          "preset",
+          "models",
+          "verification",
+          "requested_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/AccessPreset"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -27240,6 +28798,14 @@
             "minimum": 0
           }
         }
+      },
+      "Reachability": {
+        "type": "string",
+        "enum": [
+          "online",
+          "offline",
+          "never"
+        ]
       },
       "ReasoningControl": {
         "type": "object",
@@ -28780,6 +30346,37 @@
           "save": {
             "type": "boolean",
             "description": "Also save the values to the model definition (and the profile's own overrides)."
+          }
+        }
+      },
+      "RevokedAll": {
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "RoleInfo": {
+        "type": "object",
+        "description": "A role and the components it needs.",
+        "required": [
+          "role",
+          "components"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/DeviceRole"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -30822,6 +32419,38 @@
             "items": {
               "$ref": "#/components/schemas/Grant"
             }
+          }
+        }
+      },
+      "Suggestion": {
+        "type": "object",
+        "required": [
+          "required_bytes",
+          "local_bytes",
+          "fits_locally",
+          "hosts"
+        ],
+        "properties": {
+          "required_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "local_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "fits_locally": {
+            "type": "boolean",
+            "description": "This computer can run the model itself."
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostSuggestion"
+            },
+            "description": "Paired devices that could run it instead, best first (empty when it fits locally)."
           }
         }
       },
@@ -33109,6 +34738,10 @@
     {
       "name": "tokens",
       "description": "Named API tokens (admin)"
+    },
+    {
+      "name": "devices",
+      "description": "Paired devices: one-time offers, approval prompts, the registry, audit log, revocation (revoke all for a lost phone) and host suggestions (admin)"
     },
     {
       "name": "cloud",
