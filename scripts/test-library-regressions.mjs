@@ -230,3 +230,9 @@ test('a Python-engine repo card does not also say its task does not run here', (
   assert.match(card, /let pythonEngine = \$derived\('runtime' in repo\.compatibility && repo\.compatibility\.runtime === 'python-hf'\)/);
   assert.match(card, /support === 'no' && task && !taskNeeds && !pythonEngine/);
 });
+
+test('a Python-engine image repo is not treated as a stable-diffusion.cpp bundle', () => {
+  // caidas/swin2SR-classical-sr-x2-64 showed the "pick a VAE / text encoder" note of sd.cpp repos.
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  assert.match(drawer, /includes\('image_generation'\) &&\s*!\('runtime' in repo\.compatibility && repo\.compatibility\.runtime === 'python-hf'\)/);
+});

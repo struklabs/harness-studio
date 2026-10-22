@@ -126,11 +126,12 @@
 
   /**
    * An image repo of stable-diffusion.cpp: its files are checkpoints and companions, not GGUF
-   * quantizations. A diffusers pipeline (Python engine) is one download of its folders instead.
+   * quantizations. A Python-engine repo (a diffusers pipeline, a Swin2SR upscaler) is one download
+   * of its folder instead.
    */
   let isImageRepo = $derived(
     !!repo?.capabilities?.includes('image_generation') &&
-      !(repo.format === 'diffusers' && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf')
+      !('runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf')
   );
   /** An mlx-audio speech repo: its family may load a codec (OuteTTS, Orpheus, Dia), a companion. */
   let isCodecRepo = $derived(
