@@ -112,7 +112,8 @@
   let voiceConversion = $derived((repo.tags ?? []).some((x) => x.toLowerCase() === 'voice-conversion'));
   let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
   // A decision repo's task comes from its tag, not from an inference.
-  let videoTask = $derived((repo.pipeline_tag ?? repo.inferred_task ?? '').includes('video'));
+  // Video generation needs a lot of memory; understanding (video-text-to-text) samples a few frames.
+  let videoTask = $derived(['text-to-video', 'image-to-video', 'video-to-video'].includes(repo.pipeline_tag ?? repo.inferred_task ?? ''));
   let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
