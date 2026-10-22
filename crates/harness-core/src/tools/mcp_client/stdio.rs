@@ -63,7 +63,7 @@ impl StdioTransport {
         spec: &StdioSpec,
         notifications: mpsc::UnboundedSender<Value>,
     ) -> Result<Self, McpError> {
-        let mut cmd = tokio::process::Command::new(&spec.command);
+        let mut cmd = crate::process::hidden_tokio_command(&spec.command);
         // macOS: Homebrew / Node folders a Finder-started app lacks (`npx`, `uvx`); set first
         // so the server's own `PATH` still wins.
         if let Some(path) = crate::integrations::launch::augmented_path() {

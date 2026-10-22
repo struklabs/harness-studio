@@ -341,7 +341,7 @@ async fn helper(args: &[&str]) -> ApiResult<String> {
     }
     let output = tokio::time::timeout(
         Duration::from_secs(180),
-        tokio::process::Command::new("sudo")
+        harness_core::process::hidden_tokio_command("sudo")
             .args(["-n", HELPER])
             .args(args)
             .kill_on_drop(true)

@@ -68,7 +68,6 @@ mod linux {
     use std::os::unix::net::{UnixListener, UnixStream};
     use std::os::unix::process::{CommandExt, ExitStatusExt};
     use std::path::PathBuf;
-    use std::process::Command;
 
     pub fn run(args: &[OsString]) -> Result<i32, String> {
         let [socket, host, port, sep, program, rest @ ..] = args else {
@@ -92,7 +91,7 @@ mod linux {
         let _ = std::fs::remove_file(&socket);
         let listener =
             UnixListener::bind(&socket).map_err(|e| format!("bind {}: {e}", socket.display()))?;
-        let mut cmd = Command::new(program);
+        let mut cmd = crate::process::hidden_command(program);
         cmd.args(rest);
         crate::appimage::foreign_std(&mut cmd);
         // SAFETY: only async-signal-safe libc calls between fork and exec.

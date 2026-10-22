@@ -116,7 +116,7 @@ pub async fn to_wav_with(
 ) -> Result<Vec<u8>, String> {
     use tokio::io::AsyncWriteExt;
     let ffmpeg = ffmpeg_path().ok_or_else(|| String::from(err("audio.ffmpeg_missing")))?;
-    let mut cmd = tokio::process::Command::new(ffmpeg);
+    let mut cmd = crate::process::hidden_tokio_command(ffmpeg);
     let rate = rate.to_string();
     let limit = max_secs.map(|s| s.to_string());
     let mut args = vec![

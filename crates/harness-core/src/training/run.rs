@@ -71,7 +71,7 @@ pub(super) fn worker_command(
         _ => crate::engine::python_hf::binary()?,
     };
     let script = worker_script(device)?;
-    let mut cmd = tokio::process::Command::new(python);
+    let mut cmd = crate::process::hidden_tokio_command(python);
     cmd.arg(script)
         .args(args)
         .current_dir(cwd)

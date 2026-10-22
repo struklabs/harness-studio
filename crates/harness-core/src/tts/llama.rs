@@ -521,7 +521,7 @@ pub async fn speak(
             .await
             .map_err(|e| format!("could not write the text: {e}"))?;
         let budget = frame_budget(run.chars().count());
-        let mut command = tokio::process::Command::new(binary);
+        let mut command = crate::process::hidden_tokio_command(binary);
         command
             .args(args(model, &prompt, &output, budget, language))
             .stdin(Stdio::null())

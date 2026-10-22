@@ -167,17 +167,61 @@ impl LaunchConfig {
     }
 }
 
-/// A command for short helper invocations (`--help`, `--version`, tool probes):
-/// no console window on Windows, no stdin.
-pub fn quiet_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
-    let mut cmd = Command::new(program);
-    cmd.stdin(Stdio::null());
-    crate::appimage::foreign_std(&mut cmd);
+/// `CREATE_NO_WINDOW`: the child gets a console without a window, so no terminal ever flashes
+/// up. Not combinable with `DETACHED_PROCESS` (they conflict) or `CREATE_NEW_CONSOLE`.
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Builds a [`Command`] that never opens a console window on Windows. Every child process
+/// Harness starts goes through this (or [`hidden_tokio_command`]); a guard test
+/// (`tests/no_console_windows.rs`) rejects a bare `Command::new` elsewhere.
+pub fn hidden_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program); // hidden: this is the helper itself
+    hide_window(&mut cmd);
+    cmd
+}
+
+/// Async twin of [`hidden_command`].
+pub fn hidden_tokio_command(program: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = tokio::process::Command::new(program); // hidden: this is the helper itself
+    hide_window_tokio(&mut cmd);
+    cmd
+}
+
+/// Marks an existing command as windowless (no-op off Windows). Replaces any earlier creation
+/// flags: when a site needs more (e.g. `CREATE_NEW_PROCESS_GROUP`), OR them with
+/// [`CREATE_NO_WINDOW`] via `creation_flags` itself.
+pub fn hide_window(cmd: &mut Command) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// [`hide_window`] for an async command.
+pub fn hide_window_tokio(cmd: &mut tokio::process::Command) {
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// [`hide_window`] for a `command_group` builder (std or tokio). The group spawn replaces the
+/// inner command's creation flags with its own, so the flag must be set here too.
+pub fn hide_window_group<T>(group: &mut command_group::builder::CommandGroupBuilder<'_, T>) {
+    group.creation_flags(CREATE_NO_WINDOW);
+}
+
+/// A command for short helper invocations (`--help`, `--version`, tool probes):
+/// no console window on Windows, no stdin.
+pub fn quiet_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut cmd = hidden_command(program);
+    cmd.stdin(Stdio::null());
+    crate::appimage::foreign_std(&mut cmd);
     cmd
 }
 
@@ -1873,7 +1917,7 @@ impl ProcessManager {
             #[cfg(not(unix))]
             let socket = PathBuf::new();
             self.push_log("[Harness Studio] Server: isolated (no network)".to_string());
-            let mut cmd = Command::new("unshare");
+            let mut cmd = hidden_command("unshare");
             cmd.args(["--user", "--map-root-user", "--net", "--"])
                 .arg(exe)
                 .args(crate::netns_bridge::bridge_args(
@@ -1884,7 +1928,7 @@ impl ProcessManager {
                 .arg(&config.binary_path);
             cmd
         } else {
-            Command::new(&config.binary_path)
+            hidden_command(&config.binary_path)
         };
         // The bridge is this executable (it needs the AppImage's libraries) and cleans the
         // environment for the server it starts.
@@ -1945,12 +1989,7 @@ impl ProcessManager {
                 cmd.env(var, key);
             }
         }
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
+        hide_window(&mut cmd);
         // Process group / Windows Job Object. Windows uses KILL_ON_JOB_CLOSE; on Unix `prepare`
         // adds the parent-death watchdog (`orphans::protect`), so the server and its group
         // also die if Harness Studio crashes or is killed.
@@ -1992,8 +2031,7 @@ impl ProcessManager {
         group.kill_on_drop(true);
         // command-group replaces the inner command's creation flags with its own on spawn, so
         // CREATE_NO_WINDOW must be set on the group too or a console window opens.
-        #[cfg(windows)]
-        group.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        hide_window_group(&mut group);
         let mut child_group = match group.spawn() {
             Ok(c) => c,
             Err(e) => {

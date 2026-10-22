@@ -17,7 +17,7 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 
@@ -300,7 +300,7 @@ impl Store {
         stdin: Option<&[u8]>,
     ) -> Result<Vec<u8>, String> {
         let no_hooks = self.root.join("no-hooks");
-        let mut cmd = Command::new("git");
+        let mut cmd = crate::process::hidden_command("git");
         cmd.current_dir(folder)
             .args(["-c", "core.fsmonitor=false", "-c", "core.quotepath=false"])
             // Bytes in, the same bytes out: no line-ending conversion on add or restore.
@@ -752,6 +752,7 @@ fn walk(folder: &Path) -> Result<Vec<(String, PathBuf, u64)>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     fn write(root: &Path, rel: &str, text: &str) {
         let p = root.join(rel);

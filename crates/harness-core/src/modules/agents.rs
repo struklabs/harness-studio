@@ -434,7 +434,7 @@ fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
     }
 }
 pub(super) fn command(path: impl AsRef<std::ffi::OsStr>) -> Command {
-    let c = Command::new(path);
+    let c = crate::process::hidden_command(path);
     #[cfg(windows)]
     let c = {
         use std::os::windows::process::CommandExt;

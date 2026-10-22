@@ -212,7 +212,7 @@ fn finish() -> Result<(), String> {
         InstallKind::MacApp => move_to_trash(&mac_bundle().ok_or("App bundle not found")?),
         InstallKind::LinuxDeb => {
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let found = std::process::Command::new("dpkg")
+            let found = harness_core::process::hidden_command("dpkg")
                 .arg("-S")
                 .arg(&exe)
                 .output()
@@ -227,7 +227,7 @@ fn finish() -> Result<(), String> {
                             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'+'))
                 })
                 .ok_or("Package name not found")?;
-            let status = std::process::Command::new("pkexec")
+            let status = harness_core::process::hidden_command("pkexec")
                 .args(["apt-get", "remove", "-y", &package])
                 .status()
                 .map_err(|e| e.to_string())?;
@@ -244,7 +244,7 @@ fn finish() -> Result<(), String> {
             let uninstaller = install_dir()
                 .ok_or("Install folder unknown")?
                 .join("uninstall.exe");
-            let mut command = std::process::Command::new(uninstaller);
+            let mut command = harness_core::process::hidden_command(uninstaller);
             // Silent: this window already asked what to remove; the uninstaller only removes files.
             command.arg("/S");
             // Tells the NSIS hook to skip its plain cleanup: the user already chose what to remove.

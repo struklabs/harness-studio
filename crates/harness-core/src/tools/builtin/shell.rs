@@ -41,7 +41,7 @@ fn shell_command(command: &str) -> Command {
     {
         use std::os::windows::process::CommandExt;
         let shell = std::env::var_os("ComSpec").unwrap_or_else(|| "cmd.exe".into());
-        let mut c = Command::new(shell);
+        let mut c = crate::process::hidden_command(shell);
         // `/s` strips the outer quotes, so the command line reaches cmd untouched (Rust's own
         // argument quoting is not what cmd parses).
         c.args(["/d", "/s", "/c"]).raw_arg(format!("\"{command}\""));
@@ -49,7 +49,7 @@ fn shell_command(command: &str) -> Command {
     }
     #[cfg(not(windows))]
     {
-        let mut c = Command::new("sh");
+        let mut c = crate::process::hidden_command("sh");
         c.arg("-c").arg(command);
         crate::integrations::launch::apply_augmented_path(&mut c);
         c

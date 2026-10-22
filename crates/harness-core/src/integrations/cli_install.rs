@@ -101,7 +101,7 @@ pub fn locate_in(
 
 /// `harness --version` output (`harness 0.1.0`), if the file runs.
 pub fn version(cli: &Path) -> Option<String> {
-    let mut cmd = std::process::Command::new(cli);
+    let mut cmd = crate::process::hidden_command(cli);
     cmd.arg("--version");
     #[cfg(windows)]
     {

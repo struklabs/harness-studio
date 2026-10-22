@@ -477,7 +477,7 @@ fn driver_libraries() -> Vec<(&'static str, String, Option<PathBuf>)> {
     }
     #[cfg(target_os = "linux")]
     {
-        let ldconfig = std::process::Command::new("ldconfig")
+        let ldconfig = crate::process::hidden_command("ldconfig")
             .arg("-p")
             .stdin(std::process::Stdio::null())
             .output()

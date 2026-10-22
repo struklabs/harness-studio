@@ -365,7 +365,7 @@ pub fn confirm_memory_kill(f: &mut ServerFailure, pid: u32) {
     }
     #[cfg(target_os = "macos")]
     {
-        let mut cmd = std::process::Command::new("/usr/bin/log");
+        let mut cmd = crate::process::hidden_command("/usr/bin/log");
         cmd.args([
             "show",
             "--last",

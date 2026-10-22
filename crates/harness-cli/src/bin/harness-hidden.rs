@@ -26,7 +26,7 @@ fn run() -> i32 {
     } else {
         "harness"
     });
-    let mut cmd = Command::new(harness);
+    let mut cmd = harness_core::process::hidden_command(harness);
     cmd.args(std::env::args_os().skip(1))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -37,9 +37,9 @@ fn run() -> i32 {
 #[cfg(windows)]
 fn spawn_and_wait(mut cmd: Command) -> i32 {
     use command_group::CommandGroup;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let mut group = cmd.group();
-    group.kill_on_drop(true).creation_flags(CREATE_NO_WINDOW);
+    group.kill_on_drop(true);
+    harness_core::process::hide_window_group(&mut group);
     match group.spawn().and_then(|mut child| child.wait()) {
         Ok(status) => status.code().unwrap_or(1),
         Err(_) => 1,

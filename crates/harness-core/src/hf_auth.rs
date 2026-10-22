@@ -949,14 +949,14 @@ pub fn open_in_browser(url: &str) -> Result<(), String> {
 /// Opens a URL in the default browser without looking at its scheme (the caller vetted it).
 pub(crate) fn spawn_browser(url: &str) -> Result<(), String> {
     #[cfg(windows)]
-    let result = std::process::Command::new("rundll32")
+    let result = crate::process::hidden_command("rundll32")
         .arg("url.dll,FileProtocolHandler")
         .arg(url)
         .spawn();
     #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("open").arg(url).spawn();
+    let result = crate::process::hidden_command("open").arg(url).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
-    let result = std::process::Command::new("xdg-open").arg(url).spawn();
+    let result = crate::process::hidden_command("xdg-open").arg(url).spawn();
     reap(result)
 }
 

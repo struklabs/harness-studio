@@ -124,6 +124,7 @@ public static class HarnessConsole {
     let path = temp_dir.join("launch.ps1");
     // Windows PowerShell 5.1 needs a BOM to decode non-ASCII paths/arguments as UTF-8.
     crate::instance::write_private_file(&path, format!("\u{feff}{script}").as_bytes())?;
+    // visible-console: the user asked for a terminal (CREATE_NEW_CONSOLE below is the feature)
     let mut cmd = std::process::Command::new("powershell.exe");
     cmd.args([
         "-NoLogo",
@@ -405,8 +406,8 @@ pub fn default_script_handler(defaults_output: &str) -> Option<String> {
 /// the fallback. `Err("launch.terminal_unsupported")` when neither window opened (the UI then
 /// offers the `harness launch` command). Runs `osascript` on any OS; callers gate on macOS.
 pub fn open_in_macos_terminal(script: &Path) -> Result<u32, String> {
-    use std::process::{Command, Stdio};
-    let handler = Command::new("defaults")
+    use std::process::Stdio;
+    let handler = crate::process::hidden_command("defaults")
         .args([
             "read",
             "com.apple.LaunchServices/com.apple.launchservices.secure",
@@ -431,7 +432,7 @@ pub fn open_in_macos_terminal(script: &Path) -> Result<u32, String> {
         order.push(MacTerminal::Terminal);
     }
     for terminal in order {
-        let mut cmd = Command::new("osascript");
+        let mut cmd = crate::process::hidden_command("osascript");
         for line in macos_applescript(terminal, script)? {
             cmd.arg("-e").arg(line);
         }

@@ -286,7 +286,7 @@ pub(crate) async fn launch_integration_tool(
                 let _ = std::fs::remove_dir_all(&temp_dir);
                 "launch.terminal_unsupported".to_string()
             })?;
-            let mut c = std::process::Command::new(&term.program);
+            let mut c = harness_core::process::hidden_command(&term.program);
             c.args(&term.args);
             c
         };
