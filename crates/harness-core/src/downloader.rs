@@ -269,6 +269,52 @@ fn sibling_files(item: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn apply_gguf_quant_metadata(variants: &mut [HfModelVariant], info: &serde_json::Value) {
+    for variant in variants {
+        if variant.quantization == "Unknown" {
+            if let Some(shard) = variant.shards.first() {
+                variant.quantization = hf_gguf_quant(info, &shard.filename);
+            }
+        }
+    }
+}
+
+fn main_gguf_files(item: &serde_json::Value) -> Vec<&str> {
+    item["siblings"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|s| s["rfilename"].as_str())
+        .filter(|name| {
+            let lower = name.to_ascii_lowercase();
+            lower.ends_with(".gguf") && !lower.contains("mmproj") && !in_component_folder(&lower)
+        })
+        .collect()
+}
+
+fn hf_gguf_quant(item: &serde_json::Value, filename: &str) -> String {
+    let named = crate::gguf::extract_quant_from_filename(filename);
+    if named != "Unknown" {
+        return named;
+    }
+    let sibling = item["siblings"]
+        .as_array()
+        .and_then(|siblings| siblings.iter().find(|s| s["rfilename"] == filename));
+    let metadata_type = |value: &serde_json::Value| {
+        value["general.file_type"]
+            .as_u64()
+            .or_else(|| value["file_type"].as_u64())
+            .and_then(|v| u32::try_from(v).ok())
+    };
+    let file_type = sibling.and_then(|s| metadata_type(&s["gguf"])).or_else(|| {
+        // Repo metadata describes one GGUF, not every precision in a mixed repo.
+        (main_gguf_files(item) == [filename])
+            .then(|| metadata_type(&item["gguf"]))
+            .flatten()
+    });
+    file_type.map_or(named, crate::gguf::file_type_to_quantization)
+}
+
 fn quants_from_siblings(item: &serde_json::Value) -> Vec<String> {
     let siblings = match item.get("siblings").and_then(|s| s.as_array()) {
         Some(s) => s,
@@ -278,7 +324,10 @@ fn quants_from_siblings(item: &serde_json::Value) -> Vec<String> {
     for sib in siblings {
         if let Some(rfilename) = sib.get("rfilename").and_then(|v| v.as_str()) {
             if rfilename.to_lowercase().ends_with(".gguf") {
-                let q = crate::gguf::extract_quant_from_filename(rfilename);
+                if rfilename.to_ascii_lowercase().contains("mmproj") {
+                    continue;
+                }
+                let q = hf_gguf_quant(item, rfilename);
                 if !q.is_empty() && q != "Unknown" {
                     set.insert(q);
                 }
@@ -1821,8 +1870,58 @@ impl DownloadManager {
             .ok()?
             .error_for_status()
             .ok()?;
-        let item: serde_json::Value = res.json().await.ok()?;
+        let mut item: serde_json::Value = res.json().await.ok()?;
+        Self::resolve_unnamed_gguf(&mut item, token).await;
         parse_search_item(&item)
+    }
+
+    async fn resolve_unnamed_gguf(item: &mut serde_json::Value, token: Option<&str>) {
+        let files = main_gguf_files(item);
+        let [filename] = files.as_slice() else {
+            return;
+        };
+        if hf_gguf_quant(item, filename) != "Unknown" {
+            return;
+        }
+        let Some(repo) = item["id"].as_str() else {
+            return;
+        };
+        let Ok(url) = Self::hf_file_url(repo, "resolve", filename) else {
+            return;
+        };
+        let Ok(client) = Self::client() else {
+            return;
+        };
+        // HF's summary may expose only total/totalFileSize, which cannot tell
+        // BF16 from F16. Read at most 64 KiB, even if a server ignores Range.
+        let lookup = async {
+            let mut response = Self::apply_hf_auth(client.get(url.clone()), url.as_str(), token)
+                .header(reqwest::header::RANGE, "bytes=0-65535")
+                .send()
+                .await
+                .ok()?
+                .error_for_status()
+                .ok()?;
+            let mut prefix = Vec::new();
+            while prefix.len() < 65536 {
+                let Some(chunk) = response.chunk().await.ok()? else {
+                    break;
+                };
+                let remaining = 65536 - prefix.len();
+                prefix.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+                if let Some(ft) = crate::gguf::file_type_from_prefix(&prefix) {
+                    return Some(ft);
+                }
+            }
+            None
+        };
+        if let Ok(Some(ft)) = tokio::time::timeout(std::time::Duration::from_secs(3), lookup).await
+        {
+            if !item["gguf"].is_object() {
+                item["gguf"] = serde_json::json!({});
+            }
+            item["gguf"]["file_type"] = ft.into();
+        }
     }
 
     async fn search_gguf_page(
@@ -1954,6 +2053,17 @@ impl DownloadManager {
             .json()
             .await
             .map_err(|e| crate::http_error::transport(&e, &url))?;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(3);
+        let items = futures_util::stream::iter(items)
+            .map(|mut item| async move {
+                let _ =
+                    tokio::time::timeout_at(deadline, Self::resolve_unnamed_gguf(&mut item, token))
+                        .await;
+                item
+            })
+            .buffered(4)
+            .collect()
+            .await;
         Ok((items, next_cursor))
     }
 
@@ -2382,7 +2492,7 @@ impl DownloadManager {
             .iter()
             .filter_map(|i| i.get("path").and_then(|v| v.as_str()).map(String::from))
             .collect();
-        let info = if paths.iter().any(|p| p.ends_with(".gguf")) {
+        let mut info = if paths.iter().any(|p| p.ends_with(".gguf")) {
             let url = format!("{HF_API}/models/{repo_id}");
             Self::apply_hf_auth(Self::client()?.get(&url), &url, token)
                 .send()
@@ -2461,7 +2571,10 @@ impl DownloadManager {
                 return Ok(checkpoint);
             }
         }
-        Self::file_variants(repo_id, &items, image_repo)
+        Self::resolve_unnamed_gguf(&mut info, token).await;
+        let mut variants = Self::file_variants(repo_id, &items, image_repo)?;
+        apply_gguf_quant_metadata(&mut variants, &info);
+        Ok(variants)
     }
 
     fn file_variants(
@@ -5493,6 +5606,48 @@ fn recorded_hash(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unnamed_gguf_quant_metadata() {
+        use base64::Engine;
+        let mut info: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/paddleocr-gguf.json")).unwrap();
+        let filename = "PaddleOCR-VL-1.6-GGUF.gguf";
+        // Parameter count and byte size alone cannot distinguish F16 and BF16.
+        assert!(super::quants_from_siblings(&info).is_empty());
+        let header: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/paddleocr-gguf-prefix.json")).unwrap();
+        let prefix = base64::engine::general_purpose::STANDARD
+            .decode(header["prefix_base64"].as_str().unwrap())
+            .unwrap();
+        let file_type = crate::gguf::file_type_from_prefix(&prefix).unwrap();
+        assert_eq!(file_type, header["file_type"].as_u64().unwrap() as u32);
+        info["gguf"]["file_type"] = serde_json::json!(file_type);
+        assert_eq!(super::parse_search_item(&info).unwrap().quants, ["BF16"]);
+        let items = vec![
+            serde_json::json!({"path": filename, "size": 935769056}),
+            serde_json::json!({"path": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf", "size": 881770560}),
+        ];
+        let mut variants =
+            super::DownloadManager::file_variants(info["id"].as_str().unwrap(), &items, false)
+                .unwrap();
+        super::apply_gguf_quant_metadata(&mut variants, &info);
+        assert_eq!(variants[0].quantization, "BF16");
+        assert_eq!(variants[1].quantization, "mmproj");
+        info["siblings"][0]["rfilename"] = serde_json::json!("PaddleOCR-VL-1.6-mmproj-F16.gguf");
+        assert_eq!(super::quants_from_siblings(&info), ["BF16"]);
+
+        // A repo-level type must not leak to a different main file.
+        info["siblings"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"rfilename": "other.gguf"}));
+        assert_eq!(super::hf_gguf_quant(&info, filename), "Unknown");
+        info["siblings"][1]["gguf"] = serde_json::json!({"general.file_type": 1});
+        assert_eq!(super::hf_gguf_quant(&info, filename), "F16");
+        assert_eq!(super::hf_gguf_quant(&info, "model-Q4_K_M.gguf"), "Q4_K_M");
+        info["siblings"][1]["gguf"] = serde_json::json!({"file_type": "invalid"});
+        assert_eq!(super::hf_gguf_quant(&info, filename), "Unknown");
+    }
 
     #[test]
     fn training_base_variant_takes_weights_config_and_tokenizer_only() {

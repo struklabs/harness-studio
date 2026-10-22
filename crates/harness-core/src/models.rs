@@ -1025,6 +1025,7 @@ impl ModelManager {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use std::io::Write;
 
@@ -1063,6 +1064,32 @@ mod tests {
         assert_eq!(gguf_training_name(&file, "").as_deref(), Some("Hello Qwen"));
         let weights = root.path().join("weights.safetensors");
         assert_eq!(gguf_training_name(&weights, "BF16"), None);
+    }
+
+    #[test]
+    fn unnamed_gguf_quant_from_local_header() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("PaddleOCR-VL-1.6-GGUF.gguf");
+        let mut file = fs::File::create(&path).unwrap();
+        file.write_all(b"GGUF").unwrap();
+        file.write_all(&3u32.to_le_bytes()).unwrap();
+        file.write_all(&0u64.to_le_bytes()).unwrap();
+        file.write_all(&1u64.to_le_bytes()).unwrap();
+        let key = b"general.file_type";
+        file.write_all(&(key.len() as u64).to_le_bytes()).unwrap();
+        file.write_all(key).unwrap();
+        file.write_all(&4u32.to_le_bytes()).unwrap();
+        file.write_all(&32u32.to_le_bytes()).unwrap();
+        drop(file);
+        let prefix = fs::read(&path).unwrap();
+        assert_eq!(crate::gguf::file_type_from_prefix(&prefix), Some(32));
+        for end in 0..prefix.len() {
+            assert_eq!(crate::gguf::file_type_from_prefix(&prefix[..end]), None);
+        }
+        let models = ModelManager.scan_directories(&[dir.path().to_path_buf()]);
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].quantization, "BF16");
+        assert_eq!(models[0].gguf.as_ref().unwrap().file_type, Some(32));
     }
 
     #[test]

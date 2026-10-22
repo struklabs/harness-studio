@@ -1053,6 +1053,64 @@ pub fn file_type_to_quantization(ft: u32) -> String {
     s.to_string()
 }
 
+/// Reads only `general.file_type` from a bounded remote header prefix. Missing or
+/// truncated metadata is inconclusive; tensor bytes are never needed.
+pub(crate) fn file_type_from_prefix(mut bytes: &[u8]) -> Option<u32> {
+    fn take<'a>(bytes: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
+        let value = bytes.get(..n)?;
+        *bytes = &bytes[n..];
+        Some(value)
+    }
+    fn u32_value(bytes: &mut &[u8]) -> Option<u32> {
+        Some(u32::from_le_bytes(take(bytes, 4)?.try_into().ok()?))
+    }
+    fn u64_value(bytes: &mut &[u8]) -> Option<u64> {
+        Some(u64::from_le_bytes(take(bytes, 8)?.try_into().ok()?))
+    }
+    fn string<'a>(bytes: &mut &'a [u8]) -> Option<&'a [u8]> {
+        let n = usize::try_from(u64_value(bytes)?).ok()?;
+        take(bytes, n)
+    }
+    fn skip(bytes: &mut &[u8], kind: u32) -> Option<()> {
+        let size = match kind {
+            0 | 1 | 7 => 1,
+            2 | 3 => 2,
+            4..=6 => 4,
+            10..=12 => 8,
+            8 => return string(bytes).map(|_| ()),
+            9 => {
+                let item = u32_value(bytes)?;
+                let count = usize::try_from(u64_value(bytes)?).ok()?;
+                // Nested arrays are not GGUF metadata values. Bound iterations by
+                // the available bytes, including for variable-width strings.
+                if item == 9 || count > bytes.len() {
+                    return None;
+                }
+                for _ in 0..count {
+                    skip(bytes, item)?;
+                }
+                return Some(());
+            }
+            _ => return None,
+        };
+        take(bytes, size).map(|_| ())
+    }
+    if take(&mut bytes, 4)? != GGUF_MAGIC || !matches!(u32_value(&mut bytes)?, 2 | 3) {
+        return None;
+    }
+    u64_value(&mut bytes)?;
+    let count = u64_value(&mut bytes)?;
+    for _ in 0..count {
+        let key = string(&mut bytes)?;
+        let kind = u32_value(&mut bytes)?;
+        if key == b"general.file_type" && kind == 4 {
+            return u32_value(&mut bytes);
+        }
+        skip(&mut bytes, kind)?;
+    }
+    None
+}
+
 pub fn extract_quant_from_filename(filename: &str) -> String {
     let upper = filename.to_uppercase();
     // Longer / more specific names first so e.g. "IQ4_XS" isn't reported as something shorter.
@@ -1126,8 +1184,36 @@ pub fn extract_quant_from_filename(filename: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn unnamed_gguf_quant_prefix_rejects_invalid_headers() {
+        assert_eq!(file_type_from_prefix(b"not a GGUF"), None);
+        let mut bytes = b"GGUF".to_vec();
+        bytes.extend_from_slice(&3u32.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&2u64.to_le_bytes());
+        // Skip a string array before reaching the file type.
+        bytes.extend_from_slice(&1u64.to_le_bytes());
+        bytes.extend_from_slice(b"x");
+        bytes.extend_from_slice(&9u32.to_le_bytes());
+        bytes.extend_from_slice(&8u32.to_le_bytes());
+        bytes.extend_from_slice(&1u64.to_le_bytes());
+        bytes.extend_from_slice(&3u64.to_le_bytes());
+        bytes.extend_from_slice(b"abc");
+        bytes.extend_from_slice(&17u64.to_le_bytes());
+        bytes.extend_from_slice(b"general.file_type");
+        bytes.extend_from_slice(&4u32.to_le_bytes());
+        bytes.extend_from_slice(&32u32.to_le_bytes());
+        assert_eq!(file_type_from_prefix(&bytes), Some(32));
+        for end in 0..bytes.len() {
+            assert_eq!(file_type_from_prefix(&bytes[..end]), None);
+        }
+        bytes[4] = 99;
+        assert_eq!(file_type_from_prefix(&bytes), None);
+    }
 
     #[test]
     fn lowercase_plain_quant_suffixes_are_parsed() {

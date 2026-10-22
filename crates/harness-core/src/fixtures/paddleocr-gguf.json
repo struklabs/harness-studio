@@ -1,0 +1,14 @@
+{
+  "id": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+  "tags": ["gguf", "image-text-to-text"],
+  "gguf": {
+    "total": 466654208,
+    "architecture": "paddleocr",
+    "context_length": 131072,
+    "totalFileSize": 935769056
+  },
+  "siblings": [
+    {"rfilename": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf"},
+    {"rfilename": "PaddleOCR-VL-1.6-GGUF.gguf"}
+  ]
+}
