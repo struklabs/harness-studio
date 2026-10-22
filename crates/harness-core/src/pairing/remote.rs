@@ -6,6 +6,7 @@ use blake2::{Blake2s256, Digest};
 use serde_json::{json, Value};
 
 pub mod apps;
+pub mod frames;
 pub mod noise;
 pub mod relay;
 pub mod runtime;
@@ -15,6 +16,19 @@ mod tests;
 pub const ERR_PROTOCOL: &str = "pairing.remote_protocol";
 pub const ERR_KEYCHAIN: &str = "pairing.remote_keychain";
 pub const ERR_REVOKED: &str = "pairing.remote_revoked";
+/// The reveal does not open the commitment; the claim is burned (HTTP 403).
+pub const ERR_INVALID_REVEAL: &str = "pairing.invalid_reveal";
+/// A pairing body carried a key field. Keys come only from the Noise session (HTTP 400).
+pub const ERR_KEY_IN_BODY: &str = "pairing.key_in_body";
+
+/// A pending claim lives this long from the claim itself (APP_PROTOCOL 4.1).
+pub const REMOTE_CLAIM_TTL_SECS: u64 = 180;
+/// An approved token is re-delivered by the same poll for this long after the first delivery,
+/// until the browser acknowledges it.
+pub const TOKEN_REDELIVERY_SECS: u64 = 60;
+/// An approved claim waits this long for its first poll before the token copy is wiped.
+pub const TOKEN_DELIVERY_WINDOW_SECS: u64 = 300;
+pub const POLL_INTERVAL_MS: u64 = 2000;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -105,14 +119,40 @@ pub(super) struct CommittedClaim {
     commit: [u8; 32],
     hash: Vec<u8>,
     name: String,
-    nonce_d: [u8; 32],
+    nd: [u8; 32],
     desktop_key: [u8; 32],
     pub client_key: [u8; 32],
     pub revealed: bool,
+    /// Set when the owner approves; the token copy is wiped `TOKEN_DELIVERY_WINDOW_SECS` later
+    /// if it was never polled.
+    pub approved_at: Option<u64>,
+    /// Set on the first delivery; the same poll re-delivers until `ack` or the redelivery window.
+    pub delivered_at: Option<u64>,
 }
 
 fn field<'a>(v: &'a Value, key: &str) -> Result<&'a str, String> {
     v[key].as_str().ok_or_else(|| ERR_PROTOCOL.into())
+}
+
+/// Static keys come only from the Noise session. A body that names one is refused outright:
+/// it is never compared and never used (APP_PROTOCOL 4.3, review C1).
+fn reject_key_fields(body: &Value) -> Result<(), String> {
+    if let Some(map) = body.as_object() {
+        let forbidden = |k: &str| {
+            let k = k.to_ascii_lowercase();
+            k.contains("static") || k.contains("pub") || k == "kc" || k == "kd" || k.contains("key")
+        };
+        if map.keys().any(|k| forbidden(k)) {
+            return Err(ERR_KEY_IN_BODY.into());
+        }
+    }
+    Ok(())
+}
+
+fn rfc3339(secs: u64) -> Result<String, String> {
+    Ok(chrono::DateTime::from_timestamp(secs as i64, 0)
+        .ok_or(ERR_PROTOCOL)?
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
 }
 
 impl Hub {
@@ -135,7 +175,9 @@ impl Hub {
         if code.len() != 8 || !code.bytes().all(|b| b.is_ascii_digit()) {
             return Err(ERR_INVALID_CODE.into());
         }
-        let nonce_d = control_api::random_bytes::<32>()?;
+        // The desktop nonce is generated only after the commitment was decoded and is sent back
+        // in this answer.
+        let nd = control_api::random_bytes::<32>()?;
         // `claim` installs a legacy pending record; hold an outer transaction lock so owner
         // approval cannot see it before the commitment has been attached.
         let now = self.now();
@@ -160,6 +202,7 @@ impl Hub {
         let id = control_api::hex(&control_api::random_bytes::<8>()?);
         let secret = control_api::new_secret()?;
         let offer = st.offers.remove(i);
+        let expires_at = now + REMOTE_CLAIM_TTL_SECS;
         st.claims.push(Claim {
             id: id.clone(),
             poll_secret: poll_digest(&id, &secret),
@@ -170,54 +213,139 @@ impl Hub {
             models: offer.info.models,
             verification: String::new(),
             requested_at: now,
-            expires_at: now + CLAIM_TTL_SECS,
+            expires_at,
             stage: ClaimStage::Pending,
             remote: Some(CommittedClaim {
                 commit,
                 hash: hash.to_vec(),
                 name,
-                nonce_d,
+                nd,
                 desktop_key,
                 client_key,
                 revealed: false,
+                approved_at: None,
+                delivered_at: None,
             }),
         });
-        Ok(
-            json!({"claim_id":id,"poll_secret":secret,"nonce_d":encode(&nonce_d),
-            "static_pub_d":encode(&desktop_key),"expires_at":chrono::DateTime::from_timestamp((now + CLAIM_TTL_SECS) as i64,0).ok_or(ERR_PROTOCOL)?.to_rfc3339_opts(chrono::SecondsFormat::Secs,true),"poll_interval_ms":2000}),
-        )
+        Ok(json!({"claim_id":id,"poll_secret":secret,"nd":encode(&nd),
+            "expires_at":rfc3339(expires_at)?,"poll_interval_ms":POLL_INTERVAL_MS}))
     }
 
+    /// Opens the commitment with `nc`. The claim is found by id and must belong to the calling
+    /// Noise session's key; keys and `h` come from the session, never from the body.
     fn remote_reveal(&self, body: &Value, peer: &[u8; 32]) -> Result<Value, String> {
-        let nc = decode32(field(body, "nonce_c")?)?;
-        let kc = decode32(field(body, "static_pub_c")?)?;
+        let nc = decode32(field(body, "nc")?)?;
+        let id = field(body, "claim_id")?;
+        let now = self.now();
         let mut st = self.state.lock().unwrap();
-        let c = st
+        self.expire(&mut st, now);
+        let idx = st
             .claims
-            .iter_mut()
-            .find(|c| {
-                c.id == body["claim_id"].as_str().unwrap_or("")
-                    && c.matches_poll(body["poll_secret"].as_str().unwrap_or(""))
+            .iter()
+            .position(|c| {
+                c.id == id
+                    && c.remote
+                        .as_ref()
+                        .is_some_and(|r| ct_eq(&r.client_key, peer))
             })
             .ok_or(ERR_NOT_FOUND)?;
-        if c.expires_at <= self.now() {
+        let c = &mut st.claims[idx];
+        if c.expires_at <= now {
             return Err(ERR_EXPIRED.into());
         }
         let r = c.remote.as_mut().ok_or(ERR_PROTOCOL)?;
-        // A failed reveal burns the claim. It cannot be retried with another nonce/key.
+        // One reveal per claim.
         if r.revealed || !matches!(c.stage, ClaimStage::Pending) {
             return Err(ERR_NOT_PENDING.into());
         }
-        if !ct_eq(&kc, peer)
-            || !ct_eq(&kc, &r.client_key)
-            || !ct_eq(&commitment(&nc, &kc, &r.hash, &r.name), &r.commit)
-        {
-            c.stage = ClaimStage::Denied;
-            return Err(ERR_PROTOCOL.into());
+        if !ct_eq(&commitment(&nc, peer, &r.hash, &r.name), &r.commit) {
+            // A failed reveal erases the claim and counts a strike. It cannot be retried.
+            st.claims.remove(idx);
+            st.failures.push(now);
+            return Err(ERR_INVALID_REVEAL.into());
         }
         r.revealed = true;
-        c.verification = sas(&nc, &r.nonce_d, &kc, &r.desktop_key, &r.hash, &r.name);
-        Ok(json!({"verification_code":c.verification}))
+        c.verification = sas(&nc, &r.nd, peer, &r.desktop_key, &r.hash, &r.name);
+        Ok(json!({"status":"revealed"}))
+    }
+
+    /// Index of a revealed claim that belongs to this Noise key and whose poll secret matches.
+    fn remote_owned(&self, st: &HubState, body: &Value, peer: &[u8; 32]) -> Result<usize, String> {
+        let id = field(body, "claim_id")?;
+        let secret = field(body, "poll_secret")?;
+        st.claims
+            .iter()
+            .position(|c| {
+                c.id == id
+                    && c.matches_poll(secret)
+                    && c.remote
+                        .as_ref()
+                        .is_some_and(|r| r.revealed && ct_eq(&r.client_key, peer))
+            })
+            .ok_or_else(|| ERR_NOT_FOUND.to_string())
+    }
+
+    fn remote_poll(
+        &self,
+        body: &Value,
+        peer: &[u8; 32],
+        desktop_key: [u8; 32],
+        desktop_id: &str,
+        desktop_name: &str,
+    ) -> Result<(u16, Value), String> {
+        let now = self.now();
+        let mut st = self.state.lock().unwrap();
+        self.expire(&mut st, now);
+        let idx = self.remote_owned(&st, body, peer)?;
+        let expired = st.claims[idx].expires_at <= now;
+        match &st.claims[idx].stage {
+            ClaimStage::Pending if expired => {
+                st.claims.remove(idx);
+                Err(ERR_EXPIRED.into())
+            }
+            ClaimStage::Pending => Ok((202, json!({"status":"pending"}))),
+            ClaimStage::Denied => {
+                st.claims.remove(idx);
+                Ok((
+                    403,
+                    json!({"error":{"code":"pairing.pending_denied","message":"The owner denied this device."}}),
+                ))
+            }
+            ClaimStage::Approved(grant) => {
+                let grant = (**grant).clone();
+                let claim = &mut st.claims[idx];
+                // The token stays redeliverable until `ack` (or the redelivery window ends).
+                if let Some(r) = claim.remote.as_mut() {
+                    r.delivered_at.get_or_insert(now);
+                }
+                let models = claim.models.clone();
+                Ok((
+                    200,
+                    json!({"status":"approved","token":grant.token,"token_type":"bearer","device_id":grant.device_id,
+                    "desktop_id":desktop_id,"desktop_name":desktop_name,"scopes":["status.read","models.read","chat.create"],
+                    "token_policy":{"allowed_models":if models.is_empty(){json!("*")}else{json!(models)},"rate_limit":{"requests_per_minute":60,"max_concurrent_chats":1}},
+                    "noise_static_pub":encode(&desktop_key)}),
+                ))
+            }
+        }
+    }
+
+    /// The browser stored the token and acknowledges it; the desktop wipes its redelivery copy.
+    fn remote_ack(&self, body: &Value, peer: &[u8; 32]) -> Result<Value, String> {
+        let now = self.now();
+        let mut st = self.state.lock().unwrap();
+        self.expire(&mut st, now);
+        let idx = self.remote_owned(&st, body, peer)?;
+        let delivered = matches!(st.claims[idx].stage, ClaimStage::Approved(_))
+            && st.claims[idx]
+                .remote
+                .as_ref()
+                .is_some_and(|r| r.delivered_at.is_some());
+        if !delivered {
+            return Err(ERR_NOT_FOUND.into());
+        }
+        st.claims.remove(idx);
+        Ok(json!({"status":"acknowledged"}))
     }
 
     pub fn remote_authorize(
@@ -248,40 +376,15 @@ impl Hub {
         hash: &[u8],
         desktop_id: &str,
         desktop_name: &str,
-        tokens: &TokenStore,
+        _tokens: &TokenStore,
     ) -> (u16, Value) {
         let result = (|| -> Result<(u16, Value), String> {
+            reject_key_fields(body)?;
             match op {
                 "claim" => Ok((201, self.remote_claim(body, peer, desktop_key, hash)?)),
                 "reveal" => Ok((200, self.remote_reveal(body, &peer)?)),
-                "poll" => {
-                    let id = field(body, "claim_id")?;
-                    let secret = field(body, "poll_secret")?;
-                    {
-                        let st = self.state.lock().unwrap();
-                        let c = st.claims.iter().find(|c| c.id == id).ok_or(ERR_NOT_FOUND)?;
-                        let r = c.remote.as_ref().ok_or(ERR_NOT_FOUND)?;
-                        if !ct_eq(&r.client_key, &peer) || !r.revealed {
-                            return Err(ERR_NOT_FOUND.into());
-                        }
-                    }
-                    let p = self.poll_internal(id, secret, tokens, true)?;
-                    match p.status {
-                        ClaimState::Pending => Ok((202, json!({"status":"pending"}))),
-                        ClaimState::Denied => Ok((
-                            403,
-                            json!({"error":{"code":"pairing.pending_denied","message":"The owner denied this device."}}),
-                        )),
-                        ClaimState::Expired => Err(ERR_EXPIRED.into()),
-                        ClaimState::Approved => Ok((
-                            200,
-                            json!({"status":"approved","token":p.token,"token_type":"bearer","device_id":p.device_id,
-                            "desktop_id":desktop_id,"desktop_name":desktop_name,"scopes":["status.read","models.read","chat.create"],
-                            "token_policy":{"allowed_models":if p.models.is_empty(){json!("*")}else{json!(p.models)},"rate_limit":{"requests_per_minute":60,"max_concurrent_chats":1}},
-                            "noise_static_pub":encode(&desktop_key)}),
-                        )),
-                    }
-                }
+                "poll" => self.remote_poll(body, &peer, desktop_key, desktop_id, desktop_name),
+                "ack" => Ok((200, self.remote_ack(body, &peer)?)),
                 _ => Err(ERR_PROTOCOL.into()),
             }
         })();
@@ -294,12 +397,21 @@ impl Hub {
                     code
                 };
                 let status = match code.as_str() {
-                    ERR_INVALID_CODE => 403,
+                    ERR_INVALID_CODE | ERR_INVALID_REVEAL => 403,
                     ERR_NOT_FOUND | ERR_EXPIRED => 410,
                     ERR_LOCKED | ERR_TOO_MANY => 429,
                     _ => 400,
                 };
-                let mut error = json!({"code":code,"message":"Pairing could not be completed."});
+                let message = match code.as_str() {
+                    ERR_KEY_IN_BODY => {
+                        "Keys are taken from the Noise session; a message body must not carry one."
+                    }
+                    ERR_INVALID_REVEAL => {
+                        "The reveal does not open the commitment; the claim was burned."
+                    }
+                    _ => "Pairing could not be completed.",
+                };
+                let mut error = json!({"code":code,"message":message});
                 if code == ERR_LOCKED {
                     error["retry_after_s"] = json!(60);
                 }
