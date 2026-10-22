@@ -110,9 +110,15 @@ pub fn task_capabilities(task: &str) -> &'static [Capability] {
 }
 
 /// Capabilities of a Hub repo: its declared (or inferred) task, and a whisper ggml repo is
-/// speech recognition whatever its tag says.
+/// speech recognition whatever its tag says. A transformers document-QA repo (LayoutLM, Donut)
+/// answers through the Python pipeline in Read Document, not through chat.
 pub fn hub_capabilities(task: Option<&str>, format: ModelFormat) -> Vec<Capability> {
     let mut caps: Vec<Capability> = task.map(task_capabilities).unwrap_or(&[]).to_vec();
+    if task == Some("document-question-answering")
+        && matches!(format, ModelFormat::Safetensors | ModelFormat::Pytorch)
+    {
+        caps.retain(|c| *c != Capability::Chat);
+    }
     if format == ModelFormat::WhisperGgml && !caps.contains(&Capability::Asr) {
         caps.push(Capability::Asr);
     }
@@ -649,6 +655,17 @@ mod tests {
             vec![Capability::Asr]
         );
         assert!(hub_capabilities(None, ModelFormat::Safetensors).is_empty());
+        assert_eq!(
+            hub_capabilities(
+                Some("document-question-answering"),
+                ModelFormat::Safetensors
+            ),
+            vec![Capability::Vision]
+        );
+        assert_eq!(
+            hub_capabilities(Some("document-question-answering"), ModelFormat::Gguf),
+            vec![Capability::Chat, Capability::Vision]
+        );
     }
 
     /// Formats no Harness runtime runs stay recorded as "no runtime", with their capability.
