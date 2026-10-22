@@ -64,12 +64,19 @@ export function redactDetail(text: string, max = 2000): string {
   return out.length > max ? `${out.slice(0, max)}…` : out;
 }
 
+/** True when the newest user message carries a sound clip (`input_audio`). */
+export function hasAudioTurn(messages: Record<string, unknown>[]): boolean {
+  const last = [...messages].reverse().find(m => m.role === 'user');
+  return Array.isArray(last?.content) && last.content.some(part => part?.type === 'input_audio');
+}
+
 export async function routeTools(endpoint: string, body: Record<string, unknown>, headers: Record<string, string>, signal: AbortSignal, send: typeof fetch) {
   const tools = body.tools as ToolDefinition[] | undefined;
-  if (!tools?.length) return { body, fallback: false, error: '' };
+  if (!tools?.length) return { body, fallback: false, withoutTools: false, error: '' };
   const messages = body.messages as Record<string, unknown>[];
   let selected: ToolDefinition[];
   let fallback = false;
+  let withoutTools = false;
   let errorMessage = '';
   try {
     const response = await send(`${endpoint}/chat/completions`, {
@@ -83,7 +90,10 @@ export async function routeTools(endpoint: string, body: Record<string, unknown>
     selected = selectedTools(result.choices?.[0]?.message?.content ?? '', tools);
   } catch (error) {
     if (signal.aborted) throw error;
-    selected = tools;
+    // A model that cannot route rarely copes with every schema at once. Next to a sound clip they
+    // drown the audio: LFM2.5-Audio heard it in 1 of 5 answers with 14 tools, in 5 of 5 without.
+    withoutTools = hasAudioTurn(messages);
+    selected = withoutTools ? [] : tools;
     fallback = true;
     errorMessage = error instanceof Error ? error.message : String(error);
   }
@@ -99,5 +109,5 @@ export async function routeTools(endpoint: string, body: Record<string, unknown>
     // A forced tool call cannot be honoured without schemas; send them all rather than drop it silently.
     routed.tools = tools;
   } else { delete routed.tools; delete routed.tool_choice; }
-  return { body: routed, fallback, error: errorMessage };
+  return { body: routed, fallback, withoutTools: withoutTools && !routed.tools, error: errorMessage };
 }

@@ -10,7 +10,7 @@ export async function chatRequest(
   headers: Record<string, string>,
   signal: AbortSignal,
   send: typeof fetch = fetch
-): Promise<{ response: Response; body: Record<string, unknown>; routingFallback: boolean; routingError: string }> {
+): Promise<{ response: Response; body: Record<string, unknown>; routingFallback: boolean; routingWithoutTools: boolean; routingError: string }> {
   const routing = await routeTools(endpoint, body, headers, signal, send);
   body = routing.body;
   const key = JSON.stringify([endpoint.replace(/\/+$/, ''), body.model ?? '']);
@@ -42,5 +42,5 @@ export async function chatRequest(
       routing.error = error;
     }
   }
-  return { response, body: outgoing, routingFallback: routing.fallback, routingError: routing.error };
+  return { response, body: outgoing, routingFallback: routing.fallback, routingWithoutTools: routing.withoutTools, routingError: routing.error };
 }

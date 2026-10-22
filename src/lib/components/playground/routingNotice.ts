@@ -6,10 +6,10 @@ import { firstNotice, redactDetail } from './toolRouting';
 const warned = new Set<string>();
 
 /** Concise localized warning, once per model; the redacted, bounded upstream detail is only a copy away. */
-export function notifyRoutingFallback(error: string, model: unknown) {
-  if (!firstNotice(warned, String(model ?? ''))) return;
+export function notifyRoutingFallback(error: string, model: unknown, withoutTools = false) {
+  if (!firstNotice(warned, `${withoutTools ? 'audio:' : ''}${String(model ?? '')}`)) return;
   const detail = redactDetail(error);
-  toast.warning(t('w4.routing_fallback'), {
+  toast.warning(t(withoutTools ? 'w4.routing_fallback_audio' : 'w4.routing_fallback'), {
     description: detail ? redactDetail(detail, 160) : undefined,
     duration: detail ? ACTION_TOAST_DURATION : undefined,
     action: detail ? {
