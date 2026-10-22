@@ -44,6 +44,7 @@
     dashboard: 'nav.dashboard',
     playground: 'nav.playground',
     projects: 'nav.projects',
+    coding: 'nav.coding',
     servers: 'nav.servers',
     library: 'nav.library',
     hub: 'nav.hub',

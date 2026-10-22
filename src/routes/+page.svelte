@@ -58,7 +58,7 @@
   function takeRestoreTab(): Tab {
     try {
       const tab = localStorage.getItem(RESTORE_TAB_KEY);
-      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create', 'projects', 'training', 'office'];
+      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create', 'projects', 'training', 'office', 'coding'];
       if (tabs.includes(tab as Tab)) return tab as Tab;
     } catch {
       // storage unavailable
@@ -121,7 +121,7 @@
     const navigateSections = () => {
       const url = new URL(location.href);
       const screen = url.hash.match(/^#([^/]+)(?:\/|$)/)?.[1] ?? url.searchParams.get('screen') ?? url.searchParams.get('tab');
-      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub', 'projects', 'training', 'office'].includes(screen ?? '')) currentTab = screen as Tab;
+      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub', 'projects', 'training', 'office', 'coding'].includes(screen ?? '')) currentTab = screen as Tab;
     };
     navigateSections();
     window.addEventListener('hashchange', navigateSections);
@@ -440,6 +440,8 @@
             <LazyView load={views.office} fallback />
           {:else if currentTab === 'training'}
             <LazyView load={views.training} fallback />
+          {:else if currentTab === 'coding'}
+            <LazyView load={views.coding} fallback />
           {/if}
           {#if libraryOpened}<div class="h-full" hidden={currentTab !== 'library'}><LazyView load={views.library} fallback /></div>{/if}
           {#if analyticsOpened}<div class="h-full" hidden={currentTab !== 'analytics'}><LazyView load={views.analytics} fallback /></div>{/if}

@@ -67,6 +67,7 @@ include!("modelfile.rs");
 include!("conversations.rs");
 include!("projects.rs");
 include!("taskruns.rs");
+include!("coding.rs");
 include!("compaction.rs");
 include!("rag.rs");
 include!("knowledge.rs");

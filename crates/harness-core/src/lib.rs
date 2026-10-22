@@ -15,6 +15,7 @@ pub mod changes;
 pub mod chat_template;
 pub mod cleanup;
 pub mod cloud;
+pub mod coding;
 pub mod comfyui;
 pub mod compaction;
 pub mod config;

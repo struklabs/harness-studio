@@ -357,6 +357,7 @@ pub fn run() {
         .manage(AppUpdateState::default())
         .manage(commands::PendingExposure::default())
         .manage::<commands::ToolRuns>(tools::RunTable::new())
+        .manage(commands::CodingRuns::default())
         .manage(commands::RegistryStaging::default())
         .manage(telemetry_poller)
         .manage(Arc::new(perf::PerfSampler::default()))
@@ -769,6 +770,16 @@ pub fn run() {
             taskrun_compat,
             taskrun_export,
             taskrun_import,
+            coding_permissions,
+            coding_run,
+            coding_cancel,
+            coding_approve,
+            coding_checkpoints,
+            coding_changes,
+            coding_undo,
+            coding_checkpoint_create,
+            coding_checkpoint_delete,
+            coding_apply_patch,
             create_conversation,
             open_conversation,
             get_conversation,
