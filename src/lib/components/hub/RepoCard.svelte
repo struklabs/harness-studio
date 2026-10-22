@@ -4,7 +4,7 @@
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '#lib/components/common/HelpPopover.svelte';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
-  import { onnxUnsupportedText } from '#lib/engines.js';
+  import { engineLabel, onnxUnsupportedText } from '#lib/engines.js';
   import type { HfModelSearchResult, ModelCapability } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
   import { cachedRepoFit } from './hardwareFit';
@@ -237,8 +237,8 @@
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
       {@const whisper = compat.runtime === 'whisper.cpp'}
       <!-- Other engines (sherpa-onnx, transcribe.cpp, CrispASR...) are named as they are, not as whisper.cpp. -->
-      <span class="inline-flex items-center gap-1 text-info" title={sd ? t('hub.compat_needs_sd_title') : whisper ? t('hub.compat_needs_whisper_title') : t('hub.compat_needs_engine_title', { runtime: compat.runtime })}>
-        <Info class="size-3" />{sd ? t('hub.compat_needs_sd') : whisper ? t('hub.compat_needs_whisper') : t('hub.compat_needs_engine', { runtime: compat.runtime })}
+      <span class="inline-flex items-center gap-1 text-info" title={sd ? t('hub.compat_needs_sd_title') : whisper ? t('hub.compat_needs_whisper_title') : t('hub.compat_needs_engine_title', { runtime: engineLabel(compat.runtime) })}>
+        <Info class="size-3" />{sd ? t('hub.compat_needs_sd') : whisper ? t('hub.compat_needs_whisper') : t('hub.compat_needs_engine', { runtime: engineLabel(compat.runtime) })}
       </span>
     {/if}
     {#if decision}

@@ -31,9 +31,18 @@ function stemOf(rel: string): string {
   return file.replace(/\.(gguf|bin)$/i, '').replace(/-\d{5}-of-\d{5}$/i, '');
 }
 
+// Follow-ups run one after another: a vision model and its projector often finish in the same
+// poll, and the projector's turn must see the definition the model's turn made (else the model
+// keeps no projector and the gateway serves it without image input).
+let completions: Promise<void> = Promise.resolve();
+downloads.onCompleted = (job) => {
+  completions = completions.then(() => onDownloadCompleted(job)).catch((e) => console.warn('download follow-up', e));
+  return completions;
+};
+
 // A finished download changes the library on disk: rescan it (Dashboard / Benchmark / Hub badges
 // follow `library.version`) and offer to open the new model in the Dashboard.
-downloads.onCompleted = async (job) => {
+async function onDownloadCompleted(job: DownloadProgress) {
   const message = t('hub.announce_completed', { name: job.variant_name });
   library.markChanged();
   const list = await library.refresh();
@@ -90,7 +99,7 @@ downloads.onCompleted = async (job) => {
     action: { label: t('hub.load_and_chat'), onClick: () => void loadAndChat(model) },
     cancel: openInDashboard,
   });
-};
+}
 
 /**
  * An image model needs a definition with its companion files (VAE, text encoders). The backend

@@ -181,6 +181,45 @@ test('every completed download refreshes definitions and speech pickers, includi
   assert.equal(modelOfJob({ repo_id: 'segmind/tiny-sd', variant_name: 'Python' }, [file('segmind/tiny-sd', 'pipeline')]).name, 'segmind/tiny-sd');
 });
 
+test('queued download completions wait for each rescan and finish their follow-ups', async () => {
+  const firstModel = file('first.gguf', 'tts');
+  const secondModel = file('second.gguf', 'tts');
+  const firstScan = Promise.withResolvers();
+  const secondScan = Promise.withResolvers();
+  const started = Promise.withResolvers();
+  let scans = 0;
+  state.calls = [];
+  state.scan = () => {
+    scans++;
+    started.resolve();
+    return scans === 1 ? firstScan.promise : secondScan.promise;
+  };
+  const first = downloads.onCompleted({ repo_id: 'custom_url', variant_name: firstModel.filename });
+  const second = downloads.onCompleted({ repo_id: 'custom_url', variant_name: secondModel.filename });
+  try {
+    assert.equal(typeof first?.then, 'function');
+    assert.equal(typeof second?.then, 'function');
+    await started.promise;
+    assert.equal(scans, 1);
+    firstScan.resolve([firstModel]);
+    await first;
+    assert.deepEqual(library.models, [firstModel]);
+    assert.ok(state.calls.includes('tts'));
+    assert.ok(state.calls.includes('asr'));
+    secondScan.resolve([secondModel]);
+    await second;
+    assert.equal(scans, 2);
+    assert.deepEqual(library.models, [secondModel]);
+    assert.equal(state.calls.filter(call => call === 'tts').length, 2);
+    assert.equal(state.calls.filter(call => call === 'asr').length, 2);
+  } finally {
+    firstScan.resolve([firstModel]);
+    secondScan.resolve([secondModel]);
+    await Promise.all([first, second]);
+    state.scan = null;
+  }
+});
+
 test('opening either diffusers image task selects its definition over the previous image model', async () => {
   for (const task of ['text-to-image', 'image-to-image']) {
     const model = file('segmind/tiny-sd', 'pipeline', task);

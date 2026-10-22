@@ -9,7 +9,7 @@
   import { Button } from '#lib/components/ui/button/index.js';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
-  import { familyFromError } from '#lib/engines.js';
+  import { engineLabel, familyFromError } from '#lib/engines.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
@@ -96,7 +96,7 @@
       const ok = await tts.installRuntime(family);
       installingEngine = null;
       if (!ok) {
-        error = t('eng.auto_failed', { runtime: family, error: engineInstall.state(family).error ?? '' });
+        error = t('eng.auto_failed', { runtime: engineLabel(family), error: engineInstall.state(family).error ?? '' });
         if (controller === c) controller = null;
         busy = false;
         return;

@@ -32,6 +32,7 @@
   import EngineNeeded from './common/EngineNeeded.svelte';
   import { taskInfo } from './hub/tasks';
   import { taskSupportStore } from './hub/taskSupport.svelte';
+  import { engineLabel } from '#lib/engines.js';
 
   interface Props {
     hardware?: SystemHardwareInfo | null;
@@ -403,7 +404,7 @@
         {#if taskInfoRuntime?.needs_runtime}
           <EngineNeeded family={taskInfoRuntime.needs_runtime} onInstalled={() => void taskSupportStore.load(true)} />
         {:else if taskInfoRuntime?.runtime && taskLevel === 'partial'}
-          {t('hub.task_alt_partial_banner', { task: t(task.key), runtime: taskInfoRuntime.runtime })}
+          {t('hub.task_alt_partial_banner', { task: t(task.key), runtime: engineLabel(taskInfoRuntime.runtime) })}
         {:else if taskInfoRuntime?.runtime_missing}
           {t(uiLevel.advanced ? 'hub.task_runtime_missing_banner' : 'hub.task_runtime_missing_simple', { task: t(task.key), flag: taskInfoRuntime.flag ?? taskInfoRuntime.feature ?? '' })}
         {:else}
@@ -470,7 +471,7 @@
         {#each neededFamilies as family (family)}
           <div class="mb-2 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
             <Info class="mt-1 size-3.5 shrink-0" />
-            <EngineNeeded {family} hintText={t(engineInstall.outdated(family) ? 'eng.list_banner_update' : 'eng.list_banner', { runtime: family })} class="flex-1" />
+            <EngineNeeded {family} hintText={t(engineInstall.outdated(family) ? 'eng.list_banner_update' : 'eng.list_banner', { runtime: engineLabel(family) })} class="flex-1" />
           </div>
         {/each}
         <div

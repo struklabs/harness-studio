@@ -156,6 +156,23 @@ fn model_view_keeps_the_gateway_id() {
     assert_eq!(json["context_length"], 8);
 }
 
+/// "Test Connection" lists what it found by name: `CloudModel` alone does not serialize its id.
+#[test]
+fn probe_models_carry_the_provider_model_id() {
+    let found = ProbeModel {
+        model: "qwen3-byok".into(),
+        info: CloudModel {
+            id: "qwen3-byok".into(),
+            tools: Some(true),
+            ..Default::default()
+        },
+    };
+    let json = serde_json::to_value(&found).unwrap();
+    assert_eq!(json["model"], "qwen3-byok");
+    assert_eq!(json["tools"], true);
+    assert!(json.get("id").is_none());
+}
+
 #[test]
 fn providers_accept_only_the_protocols_they_speak() {
     for kind in [

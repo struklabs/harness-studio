@@ -10,6 +10,7 @@
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { errorText } from '#lib/errors.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { engineLabel } from '#lib/engines.js';
   let { model }: { model: string } = $props();
   let documentData = $state('');
   let filename = $state('');
@@ -106,7 +107,7 @@
   {#if busy && engineInstall.autoFamily}
     {@const family = engineInstall.autoFamily}
     {@const pct = engineInstall.state(family).pct}
-    <p role="status" class="text-sm text-muted-foreground">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: family, pct: pct ?? 0 })}</p>
+    <p role="status" class="text-sm text-muted-foreground">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: engineLabel(family), pct: pct ?? 0 })}</p>
   {/if}
   {#if error}<p role="alert" class="text-sm text-destructive">{error}</p>{/if}
   {#if text}

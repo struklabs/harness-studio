@@ -36,6 +36,8 @@ export interface CatalogEntry {
   author: string | null;
   origin: Origin;
   installed: boolean;
+  /** Not installed and installable here: neither planned (or built in) nor incompatible. */
+  installable: boolean;
   enabled: boolean;
   updateAvailable: boolean;
   compatible: boolean;
@@ -67,7 +69,8 @@ export function toEntry(view: ModuleView, translate: Translate): CatalogEntry {
   return {
     id: m.id, view, name, description, category, tags, capabilities, author,
     origin: c.community ? 'community' : 'official',
-    installed, enabled: status === 'installed', updateAvailable: installed && view.update_available,
+    installed, installable: !installed && !m.planned && !view.incompatibility,
+    enabled: status === 'installed', updateAvailable: installed && view.update_available,
     compatible: !view.incompatibility && (!m.planned || builtInPage(m.id) !== null),
     fields: [
       { text: fold(name), weight: 4 },
@@ -133,7 +136,7 @@ export function searchScore(entry: Pick<CatalogEntry, 'fields'>, query: string):
 
 export function matchesFilters(entry: CatalogEntry, f: CatalogFilters): boolean {
   if (f.status === 'installed' && !entry.installed) return false;
-  if (f.status === 'available' && entry.installed) return false;
+  if (f.status === 'available' && !entry.installable) return false;
   if (f.status === 'updates' && !entry.updateAvailable) return false;
   if (f.enabled === 'enabled' && !(entry.installed && entry.enabled)) return false;
   if (f.enabled === 'disabled' && !(entry.installed && !entry.enabled)) return false;
@@ -198,7 +201,7 @@ export function facets(entries: readonly CatalogEntry[], filters: CatalogFilters
     if (matchesFilters(entry, { ...filters, platform: null })) for (const p of entry.view.manifest.platforms) bump(out.platforms, p);
     if (matchesFilters(entry, { ...filters, status: 'all' })) {
       out.status.all++;
-      if (entry.installed) out.status.installed++; else out.status.available++;
+      if (entry.installed) out.status.installed++; else if (entry.installable) out.status.available++;
       if (entry.updateAvailable) out.status.updates++;
     }
     if (matchesFilters(entry, { ...filters, origin: 'all' })) {

@@ -5,6 +5,7 @@ import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
 import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
+import { engineLabel } from '../src/lib/engines.ts';
 import { localVariantFor } from '../src/lib/components/hub/variantFiles.ts';
 import { isPythonChat, pythonChatMemory } from '../src/lib/components/hub/pythonChat.ts';
 import { canConvert } from '../src/lib/components/hub/convertible.ts';
@@ -296,7 +297,17 @@ test('a safetensors chat repo on the Python engine is told apart and weighed aga
 test('a card names the engine a repo needs instead of defaulting to whisper.cpp', () => {
   const card = readFileSync(new URL('../src/lib/components/hub/RepoCard.svelte', import.meta.url), 'utf8');
   assert.match(card, /whisper = compat\.runtime === 'whisper\.cpp'/);
-  assert.match(card, /t\('hub\.compat_needs_engine', \{ runtime: compat\.runtime \}\)/);
+  assert.match(card, /t\('hub\.compat_needs_engine', \{ runtime: engineLabel\(compat\.runtime\) \}\)/);
+  assert.match(card, /t\('hub\.compat_needs_engine_title', \{ runtime: engineLabel\(compat\.runtime\) \}\)/);
+  for (const [family, label] of [
+    ['python-hf', 'Python (Transformers)'],
+    ['onnxruntime', 'ONNX Runtime'],
+    ['mlx-audio', 'MLX Audio'],
+    ['sherpa-onnx', 'sherpa-onnx'],
+    ['future-engine', 'future-engine'],
+  ]) {
+    assert.equal(engineLabel(family), label);
+  }
 });
 
 test('a single-folder repo listed by its model file reads as downloaded in the drawer', () => {

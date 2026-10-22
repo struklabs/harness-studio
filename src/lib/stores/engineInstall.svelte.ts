@@ -183,7 +183,7 @@ class EngineInstaller {
     if (this.anyBusy) return false;
     if (!spec || spec.method === 'manual') {
       this.states[family] = { busy: false, pct: null, problem: 'manual', error: null };
-      toast.error(t('eng.manual', { runtime: family }));
+      toast.error(t('eng.manual', { runtime: engineLabel(family) }));
       return false;
     }
     const update = this.outdated(family);
@@ -203,12 +203,12 @@ class EngineInstaller {
       // The install itself succeeded, so a failed refresh is not reported as an install failure.
       await this.refreshAvailability().catch(() => {});
       this.states[family] = IDLE;
-      toast.success(t(update ? 'eng.updated_ok' : 'eng.installed_ok', { runtime: family }));
+      toast.success(t(update ? 'eng.updated_ok' : 'eng.installed_ok', { runtime: engineLabel(family) }));
       return true;
     } catch (e) {
       const error = spec.method === 'github' ? runtimeInstallErrorText(e) : localizeError(e);
       this.states[family] = { busy: false, pct: null, problem: 'failed', error };
-      toast.error(t('eng.failed', { runtime: family, error }));
+      toast.error(t('eng.failed', { runtime: engineLabel(family), error }));
       return false;
     } finally {
       this.updating[family] = false;
@@ -222,7 +222,7 @@ class EngineInstaller {
     });
     if (pick.unverified.length > 0) {
       this.states[family] = { busy: false, pct: null, problem: 'unverified', error: null };
-      toast.error(t('eng.unverified', { runtime: family }));
+      toast.error(t('eng.unverified', { runtime: engineLabel(family) }));
       return false;
     }
     const timer = setInterval(async () => {
@@ -300,7 +300,7 @@ class EngineInstaller {
     if (!env) return;
     try {
       await invoke('remove_python_env', { name: env });
-      toast.success(t('eng.removed', { runtime: family }));
+      toast.success(t('eng.removed', { runtime: engineLabel(family) }));
     } catch (e) {
       toast.error(localizeError(e));
     }
@@ -374,8 +374,8 @@ class EngineInstaller {
   /** Localized text for an automatic install that failed, else null (any other error). */
   autoFailureText(e: unknown): string | null {
     if (!(e instanceof EngineInstallFailed)) return null;
-    if (e.outcome === 'manual') return t('eng.manual', { runtime: e.family });
-    return t('eng.auto_failed', { runtime: e.family, error: this.state(e.family).error ?? '' });
+    if (e.outcome === 'manual') return t('eng.manual', { runtime: engineLabel(e.family) });
+    return t('eng.auto_failed', { runtime: engineLabel(e.family), error: this.state(e.family).error ?? '' });
   }
 
   /** The hints that said "needs an engine" re-read their data, so they disappear at once. */

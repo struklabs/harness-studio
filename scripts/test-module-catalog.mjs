@@ -77,7 +77,7 @@ test('status, enabled, origin, category, capability, platform and compatibility 
   const list = entries();
   const only = f => filterAndSort(list, filters(f), 'name');
   assert.ok(only({ status: 'installed' }).every(e => e.installed));
-  assert.ok(only({ status: 'available' }).every(e => !e.installed));
+  assert.ok(only({ status: 'available' }).every(e => !e.installed && e.installable));
   assert.ok(only({ status: 'updates' }).every(e => e.updateAvailable && e.installed));
   assert.ok(only({ enabled: 'enabled' }).every(e => e.view.state.status === 'installed'));
   assert.ok(only({ enabled: 'disabled' }).every(e => e.view.state.status === 'disabled'));
@@ -131,7 +131,21 @@ test('facet counts ignore their own filter and match what a click would show', (
   assert.equal(counts.origin.all, counts.origin.official + counts.origin.community);
   const total = facets(list, DEFAULT_FILTERS);
   assert.equal(total.status.all, 500);
-  assert.equal(total.status.installed + total.status.available, 500);
+  assert.equal(total.status.available, filterAndSort(list, filters({ status: 'available' }), 'name').length);
+  assert.ok(total.status.installed + total.status.available <= 500);
+});
+
+test('planned, built-in and incompatible modules are not counted or listed as installable', () => {
+  const list = [
+    make({ id: 'a' }),
+    make({ id: 'b', manifest: { planned: true } }),
+    make({ id: 'training', manifest: { planned: true } }),
+    make({ id: 'c' }, 'not_installed', { incompatibility: { en: 'no', tr: 'no' } }),
+    make({ id: 'd' }, 'installed'),
+  ];
+  const counts = facets(list, DEFAULT_FILTERS);
+  assert.deepEqual([counts.status.all, counts.status.installed, counts.status.available], [5, 1, 1]);
+  assert.deepEqual(filterAndSort(list, filters({ status: 'available' }), 'name').map(e => e.id), ['a']);
 });
 
 test('active filter count and bulk update targets', () => {

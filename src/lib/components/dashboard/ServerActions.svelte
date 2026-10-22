@@ -17,6 +17,7 @@
   import { shortWindow } from '#lib/stores/panes.svelte.js';
   import { cn } from '#lib/utils.js';
   import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { engineLabel } from '#lib/engines.js';
 
   interface Props {
     serverStatus: ServerStatus;
@@ -169,7 +170,7 @@
     {@const pct = engineInstall.state(family).pct}
     <div class="flex items-center gap-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2 text-xs text-info" role="status">
       <LoaderCircle class="size-3.5 shrink-0 animate-spin" />
-      <span class="min-w-0 break-words">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: family, pct: pct ?? 0 })}</span>
+      <span class="min-w-0 break-words">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: engineLabel(family), pct: pct ?? 0 })}</span>
     </div>
   {/if}
 
