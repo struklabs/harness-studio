@@ -131,6 +131,10 @@ pub fn delete_all_owned() -> Result<(), String> {
     for provider in ["brave", "tavily", "exa", "serper"] {
         accounts.push(format!("{WEB_SEARCH_PREFIX}{provider}"));
     }
+    // Integration keys of this data directory (the plain names in the default one).
+    for legacy in [N8N_ACCOUNT, PAPERCLIP_ACCOUNT] {
+        accounts.push(scoped_key_account(legacy));
+    }
     #[cfg(windows)]
     if MEMORY_OVERRIDE.get().is_none() && !cfg!(test) {
         accounts.extend(windows_accounts()?);
@@ -477,23 +481,72 @@ pub fn web_search_key_set(provider: &str, value: Option<&str>) -> Result<(), Str
     .map_err(|e| format!("could not update the web search key in the OS keychain: {e}"))
 }
 
-pub fn n8n_key_get() -> Result<Option<String>, String> {
-    store()
-        .get(N8N_ACCOUNT)
-        .map(|v| v.filter(|v| !v.trim().is_empty()))
-        .map_err(|e| {
-            crate::error_key::err("automations.keychain_unavailable")
-                .with("error", e)
-                .into()
-        })
+/// The account of a key kept per data directory: the plain `legacy` name for the real app's
+/// default directory, a hashed one for any other (isolated instances, tests).
+fn scoped_key_account(legacy: &str) -> String {
+    scoped_account("", legacy)
 }
 
-/// Stores the n8n API key; `None` or an empty value removes it.
-pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        Some(value) => store().set(N8N_ACCOUNT, value),
-        None => store().delete(N8N_ACCOUNT),
+/// Legacy accounts this data directory has already taken over (or set or cleared itself).
+fn scoped_ledger() -> crate::store::JsonStore {
+    crate::store::JsonStore::new(crate::paths::config_dir().join("scoped-secrets.json"))
+}
+
+fn scoped_done(legacy: &str) -> bool {
+    scoped_ledger()
+        .load_or_default::<Vec<String>>()
+        .iter()
+        .any(|a| a == legacy)
+}
+
+fn mark_scoped(legacy: &str) -> Result<(), String> {
+    let store = scoped_ledger();
+    let mut done: Vec<String> = store.load_or_default();
+    if !done.iter().any(|a| a == legacy) {
+        done.push(legacy.to_string());
+        store.save(&done)?;
     }
+    Ok(())
+}
+
+/// Reads a per-data-directory key. Older versions kept it under one `legacy` account for every
+/// data directory; another directory that has the integration configured copies it into its own
+/// account once. The original stays: it belongs to the default directory (or whichever wrote
+/// it). After that (or after this directory set or cleared the key) only its own account counts.
+fn scoped_key_get(
+    legacy: &str,
+    configured: impl FnOnce() -> bool,
+) -> Result<Option<String>, String> {
+    let account = scoped_key_account(legacy);
+    let value = store().get(&account)?;
+    if value.is_some() || account == legacy || scoped_done(legacy) || !configured() {
+        return Ok(value);
+    }
+    let old = store().get(legacy)?;
+    if let Some(key) = old.as_deref().filter(|k| !k.trim().is_empty()) {
+        store().set(&account, key)?;
+    }
+    mark_scoped(legacy)?;
+    Ok(old)
+}
+
+fn scoped_key_set(legacy: &str, value: Option<&str>) -> Result<(), String> {
+    let account = scoped_key_account(legacy);
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(value) => store().set(&account, value),
+        None => store().delete(&account),
+    }?;
+    if account != legacy {
+        mark_scoped(legacy)?;
+    }
+    Ok(())
+}
+
+pub fn n8n_key_get() -> Result<Option<String>, String> {
+    scoped_key_get(N8N_ACCOUNT, || {
+        !crate::config::AppSettings::load().n8n.url.is_empty()
+    })
+    .map(|v| v.filter(|v| !v.trim().is_empty()))
     .map_err(|e| {
         crate::error_key::err("automations.keychain_unavailable")
             .with("error", e)
@@ -501,24 +554,30 @@ pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
     })
 }
 
+/// Stores the n8n API key; `None` or an empty value removes it.
+pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
+    scoped_key_set(N8N_ACCOUNT, value).map_err(|e| {
+        crate::error_key::err("automations.keychain_unavailable")
+            .with("error", e)
+            .into()
+    })
+}
+
 pub fn paperclip_key_get() -> Result<Option<String>, String> {
-    store()
-        .get(PAPERCLIP_ACCOUNT)
-        .map(|v| v.filter(|v| !v.trim().is_empty()))
-        .map_err(|e| {
-            crate::error_key::err("paperclip.keychain_unavailable")
-                .with("error", e)
-                .into()
-        })
+    scoped_key_get(PAPERCLIP_ACCOUNT, || {
+        !crate::config::AppSettings::load().paperclip.url.is_empty()
+    })
+    .map(|v| v.filter(|v| !v.trim().is_empty()))
+    .map_err(|e| {
+        crate::error_key::err("paperclip.keychain_unavailable")
+            .with("error", e)
+            .into()
+    })
 }
 
 /// Stores the Paperclip key; `None` or an empty value removes it.
 pub fn paperclip_key_set(value: Option<&str>) -> Result<(), String> {
-    match value.map(str::trim).filter(|v| !v.is_empty()) {
-        Some(value) => store().set(PAPERCLIP_ACCOUNT, value),
-        None => store().delete(PAPERCLIP_ACCOUNT),
-    }
-    .map_err(|e| {
+    scoped_key_set(PAPERCLIP_ACCOUNT, value).map_err(|e| {
         crate::error_key::err("paperclip.keychain_unavailable")
             .with("error", e)
             .into()
@@ -701,6 +760,34 @@ mod tests {
             store.get(&default).unwrap().as_deref(),
             Some("default-token")
         );
+    }
+
+    #[test]
+    fn integration_keys_are_scoped_and_taken_over_once() {
+        // Tests run in a temp data directory, never the default one: the account is hashed.
+        let legacy = "t-scoped-integration-key";
+        let account = scoped_key_account(legacy);
+        assert_ne!(account, legacy);
+        store().set(legacy, "shared").unwrap();
+        // Not configured here: the shared key is neither read nor copied.
+        assert_eq!(scoped_key_get(legacy, || false).unwrap(), None);
+        // Configured: copied once, the original stays for the directory that wrote it.
+        assert_eq!(
+            scoped_key_get(legacy, || true).unwrap().as_deref(),
+            Some("shared")
+        );
+        assert_eq!(store().get(&account).unwrap().as_deref(), Some("shared"));
+        assert_eq!(store().get(legacy).unwrap().as_deref(), Some("shared"));
+        // A key this directory clears does not come back from the shared account.
+        scoped_key_set(legacy, None).unwrap();
+        assert_eq!(scoped_key_get(legacy, || true).unwrap(), None);
+        scoped_key_set(legacy, Some("own")).unwrap();
+        assert_eq!(
+            scoped_key_get(legacy, || true).unwrap().as_deref(),
+            Some("own")
+        );
+        assert_eq!(store().get(legacy).unwrap().as_deref(), Some("shared"));
+        store().delete(legacy).unwrap();
     }
 
     #[test]

@@ -1,4 +1,5 @@
 //! Public repository discovery. Never executes repository content or installs MCP servers.
+use crate::error_key::err;
 #[cfg(test)]
 use crate::secrets::SecretStore;
 use base64::Engine;
@@ -32,7 +33,7 @@ fn now() -> u64 {
 pub fn repository(input: &str) -> Result<String, String> {
     let input = input.trim();
     let path = if input.starts_with("https://") {
-        let u = reqwest::Url::parse(input).map_err(|_| "Invalid repository URL")?;
+        let u = reqwest::Url::parse(input).map_err(|_| String::from(err("ghdisc.repo_invalid")))?;
         if u.host_str() != Some("github.com")
             || !u.username().is_empty()
             || u.password().is_some()
@@ -40,7 +41,7 @@ pub fn repository(input: &str) -> Result<String, String> {
             || u.query().is_some()
             || u.fragment().is_some()
         {
-            return Err("Use a public github.com repository URL".into());
+            return Err(err("ghdisc.repo_invalid").into());
         }
         u.path().trim_matches('/').to_string()
     } else {
@@ -58,7 +59,7 @@ pub fn repository(input: &str) -> Result<String, String> {
                     .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
         })
     {
-        return Err("Use owner/repository or a repository URL".into());
+        return Err(err("ghdisc.repo_invalid").into());
     }
     Ok(path.into())
 }
@@ -112,10 +113,7 @@ impl Github {
         let backoff = crate::store::JsonStore::new(self.cache.join("backoff.json"));
         let until = backoff.load::<u64>().unwrap_or(0);
         if until > now() {
-            return Err(format!(
-                "GitHub rate limit reached; retry after the current cooldown ({} seconds) or add a GitHub token",
-                until - now()
-            ));
+            return Err(err("ghdisc.cooldown").num("seconds", until - now()).into());
         }
         let mut request = self
             .client
@@ -125,7 +123,10 @@ impl Github {
         if let Some(token) = &self.token {
             request = request.bearer_auth(token);
         }
-        let mut response = request.send().await.map_err(|_| "GitHub request failed")?;
+        let mut response = request
+            .send()
+            .await
+            .map_err(|_| String::from(err("ghdisc.request_failed")))?;
         if response.status() == 429 || response.status() == 403 {
             let headers = response.headers();
             let until = headers
@@ -142,29 +143,28 @@ impl Github {
                 .unwrap_or(now() + 60)
                 .max(now() + 1);
             backoff.save(&until)?;
-            return Err(format!(
-                "GitHub rate limit or access restriction; retry after {} seconds",
-                until.saturating_sub(now())
-            ));
+            return Err(err("ghdisc.rate_limited")
+                .num("seconds", until.saturating_sub(now()))
+                .into());
         }
         if !response.status().is_success() {
-            return Err(format!(
-                "GitHub returned HTTP {}",
-                response.status().as_u16()
-            ));
+            return Err(err("ghdisc.http")
+                .num("status", response.status().as_u16())
+                .into());
         }
         let mut bytes = Vec::new();
         while let Some(chunk) = response
             .chunk()
             .await
-            .map_err(|_| "GitHub response failed")?
+            .map_err(|_| String::from(err("ghdisc.request_failed")))?
         {
             if bytes.len() + chunk.len() > 8 * LIMIT {
-                return Err("GitHub response exceeds size limit".into());
+                return Err(err("ghdisc.response_too_large").into());
             }
             bytes.extend_from_slice(&chunk);
         }
-        let value: Value = serde_json::from_slice(&bytes).map_err(|_| "Invalid GitHub response")?;
+        let value: Value = serde_json::from_slice(&bytes)
+            .map_err(|_| String::from(err("ghdisc.invalid_response")))?;
         store.save(&Cache {
             expires: now() + TTL,
             value: value.clone(),
@@ -177,12 +177,12 @@ impl Github {
             .decode(
                 v["content"]
                     .as_str()
-                    .ok_or("Missing blob content")?
+                    .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?
                     .replace('\n', ""),
             )
-            .map_err(|_| "Invalid blob encoding")?;
+            .map_err(|_| String::from(err("ghdisc.invalid_response")))?;
         if bytes.len() > LIMIT {
-            return Err("File exceeds 1 MiB".into());
+            return Err(err("ghdisc.file_too_large").into());
         }
         Ok(bytes)
     }
@@ -190,7 +190,9 @@ impl Github {
     /// API rate limit (60 requests an hour without a token, which one review of a skills
     /// repository used up); the API blob is the fallback.
     async fn file(&self, repo: &str, commit: &str, entry: &Value) -> Result<Vec<u8>, String> {
-        let sha = entry["sha"].as_str().ok_or("Missing blob SHA")?;
+        let sha = entry["sha"]
+            .as_str()
+            .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?;
         if let Some(bytes) = self.raw_file(repo, commit, entry).await {
             return Ok(bytes);
         }
@@ -221,13 +223,20 @@ impl Github {
             .get(&format!("/repos/{repo}/git/trees/{sha}?recursive=1"))
             .await?;
         if v["truncated"] == true {
-            return Err("Repository tree is incomplete; review a smaller repository".into());
+            return Err(err("ghdisc.tree_incomplete").into());
         }
         Ok(v["tree"]
             .as_array()
-            .ok_or("Missing repository tree")?
+            .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?
             .clone())
     }
+}
+
+/// A `ghdisc.http` error for HTTP 404.
+fn is_not_found(e: &str) -> bool {
+    crate::error_key::parse(e).is_some_and(|(key, params)| {
+        key == "ghdisc.http" && params.get("status").and_then(Value::as_u64) == Some(404)
+    })
 }
 
 fn public(v: &Value) -> bool {
@@ -239,7 +248,7 @@ fn public(v: &Value) -> bool {
 pub fn parse_search(v: &Value) -> Result<Vec<Value>, String> {
     Ok(v["items"]
         .as_array()
-        .ok_or("Invalid GitHub search response")?
+        .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?
         .iter()
         .filter(|v| public(v))
         .cloned()
@@ -248,13 +257,13 @@ pub fn parse_search(v: &Value) -> Result<Vec<Value>, String> {
 pub async fn search(query: &str) -> Result<Vec<Value>, String> {
     let gh = Github::new()?;
     if query.trim().is_empty() || query.len() > 256 {
-        return Err("Enter a search query or repository URL (up to 256 characters)".into());
+        return Err(err("ghdisc.query_invalid").into());
     }
     if query.trim().starts_with("https://") || repository(query).is_ok() {
         let repo = repository(query)?;
         let v = gh.get(&format!("/repos/{repo}")).await?;
         if !public(&v) {
-            return Err("Only public repositories are supported".into());
+            return Err(err("ghdisc.public_only").into());
         }
         return Ok(vec![v]);
     }
@@ -531,8 +540,7 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
         Err(e) => r.errors.push(e),
     }
     if r.bytes > 4 * LIMIT || files.len() > 128 || files.values().any(|b| b.len() > LIMIT) {
-        r.errors
-            .push("Skill exceeds 128 files, 1 MiB per file or 4 MiB total".into());
+        r.errors.push(err("ghdisc.skill_limits").into());
     }
     let refs =
         regex::Regex::new(r#"(?:^|[\s`('"=])((?:scripts|references|assets)/[a-zA-Z0-9_./-]*)"#)
@@ -547,7 +555,8 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
     for reference in refs.captures_iter(text) {
         let p = reference[1].trim_end_matches('.');
         if !exists(p) {
-            r.errors.push(format!("Missing or unsafe resource: {p}"));
+            r.errors
+                .push(err("ghdisc.missing_resource").with("path", p).into());
         } else if !r.references.iter().any(|x| x == p) {
             r.references.push(p.to_string());
         }
@@ -567,7 +576,8 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
             .trim_start_matches("./");
         if !p.is_empty() && !p.starts_with("https://") && !p.starts_with("http://") {
             if !exists(p) {
-                r.errors.push(format!("Missing or unsafe reference: {p}"));
+                r.errors
+                    .push(err("ghdisc.missing_reference").with("path", p).into());
             } else if !r.references.iter().any(|x| x == p) {
                 r.references.push(p.to_string());
             }
@@ -575,7 +585,8 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
     }
     for (p, b) in files {
         if !safe(p) {
-            r.errors.push(format!("Unsafe resource path: {p}"));
+            r.errors
+                .push(err("ghdisc.unsafe_path").with("path", p).into());
         }
         if p.starts_with("scripts/")
             || [
@@ -617,8 +628,11 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
                 .iter()
                 .any(|d| d.ends_with('/') && script.starts_with(d.as_str()));
         if !mentioned && script != "SKILL.md" {
-            r.warnings
-                .push(format!("Script is not referenced by SKILL.md: {script}"));
+            r.warnings.push(
+                err("ghdisc.script_unreferenced")
+                    .with("path", script)
+                    .into(),
+            );
         }
     }
     r.security = summarize(&r.scripts, &r.risks);
@@ -633,9 +647,11 @@ async fn skill_files(
     path: &str,
 ) -> Result<BTreeMap<String, Vec<u8>>, String> {
     if path != "SKILL.md" && (!safe(path) || !path.ends_with("/SKILL.md")) {
-        return Err("Invalid skill path".into());
+        return Err(err("ghdisc.skill_path_invalid").into());
     }
-    let prefix = path.strip_suffix("SKILL.md").ok_or("Invalid skill path")?;
+    let prefix = path
+        .strip_suffix("SKILL.md")
+        .ok_or_else(|| String::from(err("ghdisc.skill_path_invalid")))?;
     let entries: Vec<_> = tree
         .iter()
         .filter(|e| {
@@ -643,7 +659,7 @@ async fn skill_files(
         })
         .collect();
     if entries.len() > 128 {
-        return Err("Skill exceeds 128 files".into());
+        return Err(err("ghdisc.skill_limits").into());
     }
     let mut files = BTreeMap::new();
     let mut normalized = std::collections::BTreeSet::new();
@@ -651,20 +667,20 @@ async fn skill_files(
     for e in entries {
         let p = e["path"]
             .as_str()
-            .ok_or("Missing path")?
+            .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?
             .strip_prefix(prefix)
-            .ok_or("Invalid path")?;
+            .ok_or_else(|| String::from(err("ghdisc.skill_path_invalid")))?;
         if !normalized.insert(p.to_lowercase())
             || !safe(p)
             || e["type"] != "blob"
             || !matches!(e["mode"].as_str(), Some("100644" | "100755"))
             || e["size"].as_u64().unwrap_or(u64::MAX) > LIMIT as u64
         {
-            return Err("Unsafe, linked or oversized skill resource".into());
+            return Err(err("ghdisc.unsafe_resource").into());
         }
         total += e["size"].as_u64().unwrap_or(0);
         if total > (4 * LIMIT) as u64 {
-            return Err("Skill exceeds 4 MiB".into());
+            return Err(err("ghdisc.skill_limits").into());
         }
         files.insert(p.into(), gh.file(repo, commit, e).await?);
     }
@@ -923,11 +939,11 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
     let gh = Github::new()?;
     let info = gh.get(&format!("/repos/{repo}")).await?;
     if !public(&info) {
-        return Err("Only public repositories are supported".into());
+        return Err(err("ghdisc.public_only").into());
     }
     let branch = info["default_branch"]
         .as_str()
-        .ok_or("Missing default branch")?;
+        .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?;
     let encoded: String = reqwest::Url::parse_with_params(
         "https://api.github.com/commits",
         &[("sha", branch), ("per_page", "1")],
@@ -939,7 +955,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
     let commit = gh.get(&format!("/repos/{repo}/commits?{encoded}")).await?;
     let sha = commit[0]["sha"]
         .as_str()
-        .ok_or("Missing commit SHA")?
+        .ok_or_else(|| String::from(err("ghdisc.invalid_response")))?
         .to_string();
     let tree = gh.tree(&repo, &sha).await?;
     let mut readme = String::new();
@@ -960,7 +976,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
         }
         if p == "SKILL.md" || p.ends_with("/SKILL.md") {
             if skills.len() >= 20 {
-                return Err("Repository exceeds 20 skills".into());
+                return Err(err("ghdisc.too_many_skills").into());
             }
             match skill_files(&gh, &repo, &sha, &tree, p).await {
                 Ok(files) => {
@@ -1051,7 +1067,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
         .collect();
     let release = match gh.get(&format!("/repos/{repo}/releases/latest")).await {
         Ok(v) => v,
-        Err(e) if e == "GitHub returned HTTP 404" => Value::Null,
+        Err(e) if is_not_found(&e) => Value::Null,
         Err(e) => return Err(e),
     };
     Ok(Review {
@@ -1076,13 +1092,13 @@ pub async fn install(
     root: &Path,
 ) -> Result<(), String> {
     if !confirmed || sha.len() != 40 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("Confirm the script list and a pinned commit SHA".into());
+        return Err(err("ghdisc.confirm_required").into());
     }
     let repo = repository(repo)?;
     let gh = Github::new()?;
     let info = gh.get(&format!("/repos/{repo}")).await?;
     if !public(&info) {
-        return Err("Only public repositories are supported".into());
+        return Err(err("ghdisc.public_only").into());
     }
     let tree = gh.tree(&repo, sha).await?;
     let files = skill_files(&gh, &repo, sha, &tree, path).await?;
@@ -1091,7 +1107,7 @@ pub async fn install(
         || review.scripts != scripts
         || review.security.level != security_level
     {
-        return Err("Skill validation or script confirmation failed; review again".into());
+        return Err(err("ghdisc.review_again").into());
     }
     install_files(root, &repo, sha, &review, &files)
 }
@@ -1105,7 +1121,7 @@ fn install_files(
     std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let target = root.join(&review.name);
     if target.exists() {
-        return Err("Skill already exists; remove it before installing".into());
+        return Err(err("ghdisc.skill_exists").into());
     }
     let staging = tempfile::Builder::new()
         .prefix(".github-skill-")
@@ -1199,12 +1215,12 @@ mod tests {
             .get("/search/repositories?q=one")
             .await
             .unwrap_err()
-            .contains("rate limit"));
+            .contains("ghdisc.rate_limited"));
         assert!(gh
             .get("/search/repositories?q=two")
             .await
             .unwrap_err()
-            .contains("cooldown"));
+            .contains("ghdisc.cooldown"));
     }
     #[tokio::test]
     async fn mocked_skill_blob_validation_and_resources() {
@@ -1229,7 +1245,7 @@ mod tests {
         assert!(validate_skill("SKILL.md", &content)
             .errors
             .iter()
-            .any(|e| e.contains("1 MiB")));
+            .any(|e| e.contains("ghdisc.skill_limits")));
     }
     #[tokio::test]
     async fn skill_files_come_from_the_pinned_raw_address_checked_by_size() {
@@ -1295,7 +1311,7 @@ mod tests {
             .tree("owner/demo", "abc")
             .await
             .unwrap_err()
-            .contains("incomplete"));
+            .contains("ghdisc.tree_incomplete"));
         let tree = vec![
             json!({"path":"demo/SKILL.md","type":"blob","mode":"120000","sha":"abc","size":10}),
         ];
@@ -1303,7 +1319,7 @@ mod tests {
             skill_files(&gh, "owner/demo", "abc", &tree, "demo/SKILL.md")
                 .await
                 .unwrap_err()
-                .contains("linked")
+                .contains("ghdisc.unsafe_resource")
         );
     }
     #[test]
@@ -1417,7 +1433,9 @@ mod tests {
         assert!(review.references.contains(&"scripts/demo.py".to_string()));
         assert_eq!(
             review.warnings,
-            vec!["Script is not referenced by SKILL.md: scripts/unused.sh"]
+            vec![String::from(
+                err("ghdisc.script_unreferenced").with("path", "scripts/unused.sh")
+            )]
         );
         assert_eq!(review.security.level, "medium");
         assert_eq!(review.security.network, 2);
