@@ -371,3 +371,20 @@ fn key_goes_to_the_keychain_and_links_follow_the_instance() {
     assert_eq!(off, PaperclipView::default());
     assert!(crate::secrets::paperclip_key_get().unwrap().is_none());
 }
+
+#[tokio::test]
+async fn a_paperclip_that_is_not_running_is_named_as_such() {
+    // A port nothing listens on: the shared local text sent the user to the Servers page.
+    let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", free.local_addr().unwrap());
+    drop(free);
+    let e = PaperclipClient::new(&url, None)
+        .unwrap()
+        .test()
+        .await
+        .unwrap_err();
+    assert_eq!(
+        crate::error_key::parse(&e).map(|(k, _)| k),
+        Some("paperclip.unreachable")
+    );
+}

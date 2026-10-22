@@ -1309,10 +1309,20 @@ pub struct ProbeResult {
     pub latency_ms: Option<u64>,
     pub model_count: usize,
     /// Chat models first, a few at most: enough to see the key works.
-    pub models: Vec<CloudModel>,
+    pub models: Vec<ProbeModel>,
     pub quota: Option<Quota>,
     /// The keyed error when the check failed.
     pub error: Option<String>,
+}
+
+/// A model a connection check found: the provider's model id and what is known about it.
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ProbeModel {
+    /// The provider's model id (`CloudModel` does not serialize its own).
+    pub model: String,
+    #[serde(flatten)]
+    pub info: CloudModel,
 }
 
 /// "Test Connection" in the add flow: lists the models with the typed (unsaved) key. `id`
@@ -1372,7 +1382,13 @@ pub async fn probe(input: ProviderInput, id: Option<String>) -> Result<ProbeResu
                 state: State::Online,
                 latency_ms: Some(latency),
                 model_count,
-                models,
+                models: models
+                    .into_iter()
+                    .map(|info| ProbeModel {
+                        model: info.id.clone(),
+                        info,
+                    })
+                    .collect(),
                 quota,
                 error: None,
             }

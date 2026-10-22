@@ -239,6 +239,19 @@ pub fn chat_capability(d: &ModelDefinition, meta: Option<&GgufMetadata>) -> Opti
             if crate::engine::is_ggml_file(path) {
                 return Some(false);
             }
+            // No GGUF header to read: a Python-engine folder names its task, and a single
+            // non-GGUF file (a `.ckpt`/`.safetensors` image model) never chats.
+            if path.is_dir() {
+                if let Some(task) = crate::engine::python_hf::launch_task(path) {
+                    return Some(crate::engine::python_hf::CHAT_TASKS.contains(&task.as_str()));
+                }
+            } else if path.is_file()
+                && !path
+                    .extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("gguf"))
+            {
+                return Some(false);
+            }
             path.to_string_lossy().to_string()
         }
         ModelRef::Hf { file, .. } => file.clone(),
@@ -595,6 +608,35 @@ mod tests {
         let mut custom = def("coder", &a, None);
         custom.chat_template = Some("chatml".into());
         assert!(build(&[custom], |_| None, &loaded, &[])[0].check.is_none());
+    }
+
+    #[test]
+    fn chat_filter_reads_python_engine_folders_and_skips_image_checkpoints() {
+        // These have no GGUF header; the Coding model list offered all of them for chat.
+        let dir = tempfile::tempdir().unwrap();
+        let classifier = dir.path().join("toxic-bert");
+        std::fs::create_dir_all(&classifier).unwrap();
+        std::fs::write(
+            classifier.join("config.json"),
+            r#"{"architectures":["BertForSequenceClassification"],"id2label":{"0":"NEG","1":"POS"}}"#,
+        )
+        .unwrap();
+        std::fs::write(classifier.join("model.safetensors"), "x").unwrap();
+        let checkpoint = dir.path().join("sd-v1-5-inpainting.ckpt");
+        std::fs::write(&checkpoint, "x").unwrap();
+        let gguf = dir.path().join("chat.gguf");
+        std::fs::write(&gguf, "x").unwrap();
+        assert_eq!(
+            chat_capability(&def("cls", &classifier, None), None),
+            Some(false)
+        );
+        assert_eq!(
+            chat_capability(&def("sd", &checkpoint, None), None),
+            Some(false)
+        );
+        // An unreadable GGUF and a folder without a known task stay unknown and selectable.
+        assert_eq!(chat_capability(&def("chat", &gguf, None), None), None);
+        assert_eq!(chat_capability(&def("empty", dir.path(), None), None), None);
     }
 
     #[test]

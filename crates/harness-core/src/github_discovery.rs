@@ -72,6 +72,8 @@ struct Cache {
 struct Github {
     client: reqwest::Client,
     base: String,
+    /// Origin of file contents at a commit (`raw.githubusercontent.com`).
+    raw: String,
     token: Option<String>,
     cache: std::path::PathBuf,
 }
@@ -85,6 +87,7 @@ impl Github {
                 .build()
                 .map_err(|e| e.to_string())?,
             base: "https://api.github.com".into(),
+            raw: "https://raw.githubusercontent.com".into(),
             token: crate::secrets::store().get(ACCOUNT).unwrap_or(None),
             cache: crate::paths::data_root().join("cache/github-discovery"),
         })
@@ -107,8 +110,12 @@ impl Github {
         }
         // Persist backoff across queries and app restarts, without storing credentials.
         let backoff = crate::store::JsonStore::new(self.cache.join("backoff.json"));
-        if backoff.load::<u64>().unwrap_or(0) > now() {
-            return Err("GitHub rate limit reached; retry after the current cooldown".into());
+        let until = backoff.load::<u64>().unwrap_or(0);
+        if until > now() {
+            return Err(format!(
+                "GitHub rate limit reached; retry after the current cooldown ({} seconds) or add a GitHub token",
+                until - now()
+            ));
         }
         let mut request = self
             .client
@@ -178,6 +185,36 @@ impl Github {
             return Err("File exceeds 1 MiB".into());
         }
         Ok(bytes)
+    }
+    /// A file of the tree at `commit`. The commit-pinned raw address does not count against the
+    /// API rate limit (60 requests an hour without a token, which one review of a skills
+    /// repository used up); the API blob is the fallback.
+    async fn file(&self, repo: &str, commit: &str, entry: &Value) -> Result<Vec<u8>, String> {
+        let sha = entry["sha"].as_str().ok_or("Missing blob SHA")?;
+        if let Some(bytes) = self.raw_file(repo, commit, entry).await {
+            return Ok(bytes);
+        }
+        self.blob(repo, sha).await
+    }
+    async fn raw_file(&self, repo: &str, commit: &str, entry: &Value) -> Option<Vec<u8>> {
+        let path = entry["path"].as_str()?;
+        let size = entry["size"].as_u64()?;
+        if size > LIMIT as u64 {
+            return None;
+        }
+        let mut url = reqwest::Url::parse(&self.raw).ok()?;
+        url.path_segments_mut()
+            .ok()?
+            .extend(repo.split('/'))
+            .push(commit)
+            .extend(path.split('/'));
+        let response = self.client.get(url).send().await.ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        let bytes = response.bytes().await.ok()?;
+        // The tree names the size; anything else is not the file of this commit.
+        (bytes.len() as u64 == size).then(|| bytes.to_vec())
     }
     async fn tree(&self, repo: &str, sha: &str) -> Result<Vec<Value>, String> {
         let v = self
@@ -591,6 +628,7 @@ pub fn validate_skill(path: &str, files: &BTreeMap<String, Vec<u8>>) -> SkillRev
 async fn skill_files(
     gh: &Github,
     repo: &str,
+    commit: &str,
     tree: &[Value],
     path: &str,
 ) -> Result<BTreeMap<String, Vec<u8>>, String> {
@@ -628,11 +666,7 @@ async fn skill_files(
         if total > (4 * LIMIT) as u64 {
             return Err("Skill exceeds 4 MiB".into());
         }
-        files.insert(
-            p.into(),
-            gh.blob(repo, e["sha"].as_str().ok_or("Missing blob SHA")?)
-                .await?,
-        );
+        files.insert(p.into(), gh.file(repo, commit, e).await?);
     }
     Ok(files)
 }
@@ -916,9 +950,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
         if p.eq_ignore_ascii_case("README.md")
             || ["package.json", "pyproject.toml", "server.json"].contains(&p)
         {
-            let bytes = gh
-                .blob(&repo, e["sha"].as_str().ok_or("Missing blob SHA")?)
-                .await?;
+            let bytes = gh.file(&repo, &sha, e).await?;
             let text = String::from_utf8_lossy(&bytes).into_owned();
             if p.eq_ignore_ascii_case("README.md") {
                 readme = text.chars().take(6000).collect();
@@ -930,7 +962,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
             if skills.len() >= 20 {
                 return Err("Repository exceeds 20 skills".into());
             }
-            match skill_files(&gh, &repo, &tree, p).await {
+            match skill_files(&gh, &repo, &sha, &tree, p).await {
                 Ok(files) => {
                     let mut review = validate_skill(p, &files);
                     review.commit = sha.clone();
@@ -971,6 +1003,7 @@ pub async fn inspect(repo: &str) -> Result<Review, String> {
     let registry = Github {
         client: gh.client.clone(),
         base: "https://registry.modelcontextprotocol.io".into(),
+        raw: String::new(),
         token: None,
         cache: gh.cache.join("mcp-registry"),
     };
@@ -1052,7 +1085,7 @@ pub async fn install(
         return Err("Only public repositories are supported".into());
     }
     let tree = gh.tree(&repo, sha).await?;
-    let files = skill_files(&gh, &repo, &tree, path).await?;
+    let files = skill_files(&gh, &repo, sha, &tree, path).await?;
     let review = validate_skill(path, &files);
     if !review.errors.is_empty()
         || review.scripts != scripts
@@ -1129,6 +1162,7 @@ mod tests {
                 .build()
                 .unwrap(),
             base: format!("http://{addr}"),
+            raw: format!("http://{addr}"),
             token: None,
             cache: cache.into(),
         }
@@ -1198,6 +1232,19 @@ mod tests {
             .any(|e| e.contains("1 MiB")));
     }
     #[tokio::test]
+    async fn skill_files_come_from_the_pinned_raw_address_checked_by_size() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = json!({"path":"demo/SKILL.md","type":"blob","sha":"abc","size":5});
+        let gh = mock("200 OK", "", "hello", temp.path()).await;
+        assert_eq!(
+            gh.file("owner/demo", "c0ffee", &entry).await.unwrap(),
+            b"hello"
+        );
+        // A body of another size is not this commit's file; the API fallback (gone here) fails.
+        let gh = mock("200 OK", "", "hello!", temp.path()).await;
+        assert!(gh.file("owner/demo", "c0ffee", &entry).await.is_err());
+    }
+    #[tokio::test]
     async fn mocked_registry_mcp_metadata_preserves_transports_and_secrets() {
         let temp = tempfile::tempdir().unwrap();
         let metadata = json!({"server":{"name":"io.example/demo","packages":[{"registryType":"npm","identifier":"@demo/server","version":"1.2.3","transport":{"type":"stdio"},"environmentVariables":[{"name":"API_KEY","isRequired":true,"isSecret":true}]}],"remotes":[{"type":"streamable-http","url":"https://example.com/mcp","headers":[{"name":"Authorization","isRequired":true,"isSecret":true}]}]}});
@@ -1252,10 +1299,12 @@ mod tests {
         let tree = vec![
             json!({"path":"demo/SKILL.md","type":"blob","mode":"120000","sha":"abc","size":10}),
         ];
-        assert!(skill_files(&gh, "owner/demo", &tree, "demo/SKILL.md")
-            .await
-            .unwrap_err()
-            .contains("linked"));
+        assert!(
+            skill_files(&gh, "owner/demo", "abc", &tree, "demo/SKILL.md")
+                .await
+                .unwrap_err()
+                .contains("linked")
+        );
     }
     #[test]
     fn url_and_resource_confinement_and_disabled_install() {

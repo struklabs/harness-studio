@@ -118,10 +118,11 @@ export function emptyDraft(projectId: string | null, kind: RunKind): TaskRunDraf
 
 /** One step per line; a leading `! ` marks an approval gate. Blank lines are dropped. */
 export function parseSteps(text: string): TaskRunDraft['steps'] {
-  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((line, i) => {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((line) => {
     const gate = line.startsWith('! ');
     const prompt = gate ? line.slice(2).trim() : line;
-    return { title: `${i + 1}. ${prompt.slice(0, 40)}`, prompt, gate };
+    // The list numbers the steps itself; a number in the title showed twice ("1. 1. ...").
+    return { title: prompt.slice(0, 40), prompt, gate };
   });
 }
 
