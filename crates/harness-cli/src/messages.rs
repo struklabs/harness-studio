@@ -48,6 +48,10 @@ const ERROR_LOCALES: &[(&str, &str)] = &[
         include_str!("../../../src/lib/locales/errorsPairing.ts"),
     ),
     (
+        "errorsCoding.ts",
+        include_str!("../../../src/lib/locales/errorsCoding.ts"),
+    ),
+    (
         "errorsLink.ts",
         include_str!("../../../src/lib/locales/errorsLink.ts"),
     ),
