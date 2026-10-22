@@ -28,6 +28,7 @@ export async function ensureEngine(family: string, deps: EngineDeps): Promise<En
 
 /** The engine a raw failure says is missing: a registry family, or the official llama.cpp build. */
 export function missingEngineFromError(message: string): string | null {
+  if (/\bocr\.rasterizer_unavailable\b/.test(message)) return 'python-hf';
   // Same shape as `familyFromError` in engines.ts ("…: runtime.family_not_installed: whisper.cpp").
   const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(message)?.[1];
   if (family) return family;

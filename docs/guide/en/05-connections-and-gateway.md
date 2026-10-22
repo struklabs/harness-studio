@@ -246,6 +246,8 @@ QA returns `{ "model": "...", "answer": "..." }` and includes `score` only when 
 Python `document-question-answering` pipeline supplies one. VLMs use chat and support
 both routes with a configured projector. Python DQA accepts one image per question.
 A Python OCR model and a DQA model can be selected separately for the two calls.
+LayoutLM models, including `impira/layoutlm-document-qa`, use the Python engine's bundled
+RapidOCR preprocessing to obtain text and word positions locally, without system Tesseract.
 
 PDF pages with a text layer are extracted locally, page by page, without inference.
 Pages without one (scans) are rendered to PNG at 150 dpi by the Python engine's

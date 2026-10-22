@@ -9,6 +9,7 @@
   import { Button } from '#lib/components/ui/button/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { errorText } from '#lib/errors.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   let { model }: { model: string } = $props();
   let documentData = $state('');
   let filename = $state('');
@@ -62,20 +63,26 @@
   async function run(qa: boolean) {
     if (busy || !documentData || !model || !app.gatewayRunning) return;
     controller = new AbortController(); busy = true; error = '';
+    const signal = controller.signal;
+    const body = JSON.stringify({ model, document: documentData, ...(qa ? { question } : {}) });
     if (qa) { answer = ''; score = null; } else text = '';
     try {
-      const response = await fetch(`${app.inferenceUrl.replace(/\/$/, '')}/${qa ? 'document/qa' : 'ocr'}`, {
-        method: 'POST', headers: { ...app.inferenceHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, document: documentData, ...(qa ? { question } : {}) }), signal: controller.signal,
+      if (isTauri()) await engineInstall.refresh().catch(() => undefined);
+      const result = await engineInstall.runWithEngine(async () => {
+        signal.throwIfAborted();
+        const response = await fetch(`${app.inferenceUrl.replace(/\/$/, '')}/${qa ? 'document/qa' : 'ocr'}`, {
+          method: 'POST', headers: { ...app.inferenceHeaders(), 'Content-Type': 'application/json' },
+          body, signal,
+        });
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          throw new Error(failure?.error?.harness?.error_key ?? failure?.error?.message ?? `HTTP ${response.status}`);
+        }
+        return response.json();
       });
-      if (!response.ok) {
-        const failure = await response.json().catch(() => null);
-        throw new Error(errorText(failure?.error?.harness?.error_key ?? failure?.error?.message ?? `HTTP ${response.status}`));
-      }
-      const result = await response.json();
       if (qa) { answer = result.answer; score = typeof result.score === 'number' ? result.score : null; }
       else text = result.markdown;
-    } catch (e) { if (!controller.signal.aborted) error = e instanceof Error ? e.message : t('ocr.read_failed'); }
+    } catch (e) { if (!signal.aborted) error = engineInstall.autoFailureText(e) ?? errorText(e); }
     finally { busy = false; controller = undefined; }
   }
   async function copy() {
@@ -96,6 +103,11 @@
     <Button variant="outline" disabled={busy || picking} onclick={() => input.click()}>{t('ocr.pick')}</Button>
   </div>
   <Button disabled={busy || picking || !documentData || !model || !app.gatewayRunning} onclick={() => run(false)}>{t(busy ? 'ocr.busy' : 'ocr.read')}</Button>
+  {#if busy && engineInstall.autoFamily}
+    {@const family = engineInstall.autoFamily}
+    {@const pct = engineInstall.state(family).pct}
+    <p role="status" class="text-sm text-muted-foreground">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: family, pct: pct ?? 0 })}</p>
+  {/if}
   {#if error}<p role="alert" class="text-sm text-destructive">{error}</p>{/if}
   {#if text}
     <label for="ocr-text" class="text-sm font-semibold">{t('ocr.text')}</label>

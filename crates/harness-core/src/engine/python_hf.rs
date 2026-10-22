@@ -503,6 +503,9 @@ fn config_task(cfg: &serde_json::Value, dir: &Path) -> Option<&'static str> {
         return Some("token-classification");
     }
     if has("ForQuestionAnswering") {
+        if matches!(model_type, "layoutlm" | "layoutlmv2" | "layoutlmv3") {
+            return Some("document-question-answering");
+        }
         return Some("question-answering");
     }
     if has("ForMaskedLM") {
@@ -1653,6 +1656,17 @@ mod tests {
 
     #[test]
     fn detects_tasks_from_config_and_card() {
+        let dqa = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"layoutlm","architectures":["LayoutLMForQuestionAnswering"]}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(
+            detect(dqa.path()).as_deref(),
+            Some("document-question-answering")
+        );
         let cls = folder(&[
             (
                 "config.json",
@@ -2446,6 +2460,14 @@ pipeline_tag: text-generation
         assert_eq!(
             gpu_device(&auto).is_some(),
             APPLE_SILICON || env().gpu_build_of.is_some()
+        );
+    }
+
+    #[test]
+    fn document_qa_preprocessing_and_dispatch() {
+        run_worker_script(
+            "test_hf_worker_document.py",
+            include_str!("../../python/test_hf_worker_document.py"),
         );
     }
 
