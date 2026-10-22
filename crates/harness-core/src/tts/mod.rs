@@ -255,7 +255,7 @@ fn numbered_kokoro_voices(voices_file: Option<&Path>) -> Vec<Voice> {
         .and_then(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
         .unwrap_or(0);
-    if size == 0 || size % KOKORO_VOICE_BYTES != 0 {
+    if size == 0 || !size.is_multiple_of(KOKORO_VOICE_BYTES) {
         return Vec::new();
     }
     (0..(size / KOKORO_VOICE_BYTES) as u32)
