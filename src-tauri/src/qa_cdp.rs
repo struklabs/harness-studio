@@ -25,9 +25,13 @@ pub fn start(window: tauri::WebviewWindow) -> Result<(), Box<dyn std::error::Err
     let port = std::env::var("HARNESS_QA_CDP_PORT")
         .ok()
         .map(|value| value.parse::<u16>())
-        .transpose()?
-        .unwrap_or(9281);
-    let listener = std::net::TcpListener::bind(("127.0.0.1", port))?;
+        .transpose()?;
+    let listener = match port {
+        Some(port) => std::net::TcpListener::bind(("127.0.0.1", port))?,
+        None => harness_core::ports::ISOLATED_AUTO_RANGE
+            .find_map(|port| std::net::TcpListener::bind(("127.0.0.1", port)).ok())
+            .ok_or("no free isolated QA CDP port")?,
+    };
     let timeout = Duration::from_millis(
         std::env::var("HARNESS_QA_CDP_TIMEOUT_MS")
             .ok()

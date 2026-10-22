@@ -9,9 +9,10 @@
 //!   that turns out to be taken (by the time llama-server binds it) is replaced silently; an
 //!   explicitly chosen one that is taken is a clear error naming the program that holds it.
 //! * **The gateway and the Control API** start on a fallback port when their configured port is
-//!   held by another program ([`fallback_port`]); the choice is remembered in
-//!   `config/ports.json` ([`PortState`]) so it stays the same across restarts, and every client
-//!   config Harness writes follows the port actually in use.
+//!   held by another program ([`fallback_port`]); isolated defaults and their fallbacks stay
+//!   inside [`ISOLATED_AUTO_RANGE`]. Explicitly deserialized ports override those defaults.
+//!   The fallback choice is remembered in `config/ports.json` ([`PortState`]) so it stays the
+//!   same across restarts, and every client config Harness writes follows the port actually in use.
 //! * [`holder`] names the process listening on a port (Windows `GetExtendedTcpTable`, Linux
 //!   `/proc/net/tcp*` + `/proc/<pid>/fd`, macOS `lsof`).
 
@@ -38,6 +39,49 @@ fn range_for(isolated: bool) -> RangeInclusive<u16> {
     } else {
         AUTO_RANGE
     }
+}
+
+/// Default listener ports follow the data directory; deserialized or command-line ports
+/// override these defaults unchanged. Separate starting points keep settings validation
+/// meaningful; binding retries within the range when another isolated run owns a port.
+pub fn listener_default(port: u16) -> u16 {
+    listener_default_for(port, crate::paths::is_isolated())
+}
+
+fn listener_default_for(port: u16, isolated: bool) -> u16 {
+    if isolated {
+        match port {
+            crate::gateway::DEFAULT_PORT => 12440,
+            crate::control_api::DEFAULT_PORT => 12441,
+            crate::gateway::OLLAMA_DEFAULT_PORT => 12442,
+            _ => port,
+        }
+    } else {
+        port
+    }
+}
+
+/// Whether a listener still uses its isolated default, rather than a saved port.
+/// CLI/env overrides additionally use the listener's strict-port flag.
+pub fn implicit_listener_port(
+    data_dir: &Path,
+    section: &str,
+    field: &str,
+    port: u16,
+    default: u16,
+) -> bool {
+    if !crate::paths::is_isolated() || port != listener_default(default) {
+        return false;
+    }
+    let stored = std::fs::read(data_dir.join("config/settings.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+    !stored.is_some_and(|value| value[section].get(field).is_some())
+}
+
+/// An isolated listener's default or remembered automatic port.
+pub fn is_isolated_listener_port(port: u16) -> bool {
+    crate::paths::is_isolated() && ISOLATED_AUTO_RANGE.contains(&port)
 }
 
 /// A port Harness may hand out on its own, in either range.
@@ -109,8 +153,9 @@ fn pick_in(
 
 /// A free port for a listener whose configured port is taken: `remembered` (the fallback of the
 /// last run) when it is free, else the first free port above `configured`, then (wrapping
-/// around) the unprivileged ports below it. Never well known, in an automatic range
-/// ([`is_auto`]: llama-server instances), or in `avoid`.
+/// around) the unprivileged ports below it. An isolated listener already in
+/// [`ISOLATED_AUTO_RANGE`] stays in that range. Otherwise, never well known or in an
+/// automatic range ([`is_auto`]: llama-server instances). Always skips `avoid`.
 pub fn fallback_port(
     host: &str,
     configured: u16,
@@ -126,9 +171,39 @@ fn fallback_candidates<'a>(
     remembered: Option<u16>,
     avoid: &'a [u16],
 ) -> impl Iterator<Item = u16> + 'a {
-    candidates_where(configured, remembered, avoid, move |p| {
-        crate::servers::ensure_port_free(host, p).is_ok()
-    })
+    listener_candidates_where(
+        configured,
+        remembered,
+        avoid,
+        is_isolated_listener_port(configured),
+        move |p| crate::servers::ensure_port_free(host, p).is_ok(),
+    )
+}
+
+fn listener_candidates_where<'a>(
+    configured: u16,
+    remembered: Option<u16>,
+    avoid: &'a [u16],
+    isolated: bool,
+    is_free: impl Fn(u16) -> bool + 'a,
+) -> Box<dyn Iterator<Item = u16> + 'a> {
+    if isolated {
+        // Never escape the isolated range, even when it is exhausted or ports.json
+        // remembers a port from before listener isolation was introduced.
+        Box::new(
+            remembered
+                .into_iter()
+                .chain(ISOLATED_AUTO_RANGE.filter(move |p| Some(*p) != remembered))
+                .filter(move |p| {
+                    ISOLATED_AUTO_RANGE.contains(p)
+                        && *p != configured
+                        && !avoid.contains(p)
+                        && is_free(*p)
+                }),
+        )
+    } else {
+        Box::new(candidates_where(configured, remembered, avoid, is_free))
+    }
 }
 
 /// [`fallback_candidates`] with the "is this port free" probe injected, so the order and the
@@ -568,6 +643,114 @@ mod tests {
     use super::*;
     use std::net::TcpListener;
 
+    static AUTO_LISTENERS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+    #[test]
+    fn listener_defaults_follow_isolation_and_explicit_settings_win() {
+        let defaults = [
+            crate::gateway::DEFAULT_PORT,
+            crate::control_api::DEFAULT_PORT,
+            crate::gateway::OLLAMA_DEFAULT_PORT,
+        ];
+        let mut isolated = Vec::new();
+        for port in defaults {
+            assert_eq!(listener_default_for(port, false), port);
+            let picked = listener_default_for(port, true);
+            assert!(ISOLATED_AUTO_RANGE.contains(&picked));
+            assert!(!isolated.contains(&picked));
+            isolated.push(picked);
+        }
+        assert_eq!(isolated, [12440, 12441, 12442]);
+        let settings: crate::config::AppSettings = serde_json::from_value(serde_json::json!({
+            "gateway": {"port": 19435, "ollama_port": 19434},
+            "control_api": {"port": 19500}
+        }))
+        .unwrap();
+        assert_eq!(settings.gateway.port, 19435);
+        assert_eq!(settings.gateway.ollama_port, 19434);
+        assert_eq!(settings.control_api.port, 19500);
+        // Even a deliberately configured regular default remains explicit.
+        let gateway: crate::gateway::GatewaySettings =
+            serde_json::from_str(r#"{"port":11435,"ollama_port":11434}"#).unwrap();
+        assert_eq!(gateway.port, 11435);
+        assert_eq!(gateway.ollama_port, 11434);
+        let api: crate::control_api::ControlApiSettings =
+            serde_json::from_str(r#"{"port":11500}"#).unwrap();
+        assert_eq!(api.port, 11500);
+        let missing: crate::config::AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(missing.gateway.port, isolated[0]);
+        assert_eq!(missing.control_api.port, isolated[1]);
+        assert_eq!(missing.gateway.ollama_port, isolated[2]);
+    }
+
+    #[test]
+    fn implicit_listener_ports_distinguish_missing_and_saved_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let implicit = |field, port, default| {
+            implicit_listener_port(dir.path(), "gateway", field, port, default)
+        };
+        assert!(implicit("port", 12440, crate::gateway::DEFAULT_PORT));
+        assert!(implicit(
+            "ollama_port",
+            12442,
+            crate::gateway::OLLAMA_DEFAULT_PORT
+        ));
+        std::fs::create_dir_all(dir.path().join("config")).unwrap();
+        std::fs::write(
+            dir.path().join("config/settings.json"),
+            r#"{"gateway":{"port":12440,"ollama_port":12442}}"#,
+        )
+        .unwrap();
+        assert!(!implicit("port", 12440, crate::gateway::DEFAULT_PORT));
+        assert!(!implicit(
+            "ollama_port",
+            12442,
+            crate::gateway::OLLAMA_DEFAULT_PORT
+        ));
+    }
+
+    #[test]
+    fn isolated_listener_fallbacks_never_escape_the_range() {
+        let candidates: Vec<_> =
+            listener_candidates_where(12440, Some(11435), &[12441], true, |p| p != 12442).collect();
+        assert_eq!(candidates.first(), Some(&12443));
+        assert!(candidates.iter().all(|p| ISOLATED_AUTO_RANGE.contains(p)));
+        assert_eq!(candidates.last(), Some(&12499));
+        assert_eq!(
+            listener_candidates_where(12440, Some(12449), &[], true, |_| true).next(),
+            Some(12449)
+        );
+        assert_eq!(
+            listener_candidates_where(12440, None, &[], true, |_| false).next(),
+            None
+        );
+        // Ordinary fixed/configured listeners retain their established fallback policy.
+        assert_eq!(
+            listener_candidates_where(19435, Some(19439), &[], false, |_| true).next(),
+            Some(19439)
+        );
+    }
+
+    #[tokio::test]
+    async fn isolated_listener_bind_retries_and_explicit_ports_are_strict() {
+        let _listeners = AUTO_LISTENERS.lock().await;
+        let port = pick_auto("127.0.0.1", None, &[]).unwrap();
+        let (first, _) = bind_with_fallback("127.0.0.1", port, None, Some(vec![]))
+            .await
+            .unwrap();
+        let (second, fallback) = bind_with_fallback("127.0.0.1", port, Some(11435), Some(vec![]))
+            .await
+            .unwrap();
+        let second_port = second.local_addr().unwrap().port();
+        assert_ne!(port, second_port);
+        assert!(ISOLATED_AUTO_RANGE.contains(&second_port));
+        assert_eq!(fallback.unwrap().configured, port);
+        assert!(bind_with_fallback("127.0.0.1", port, None, None)
+            .await
+            .is_err());
+        drop((first, second));
+    }
+
     #[test]
     fn the_auto_range_holds_no_well_known_port() {
         for p in WELL_KNOWN {
@@ -580,6 +763,7 @@ mod tests {
 
     #[test]
     fn auto_ports_come_from_the_range_and_skip_taken_ones() {
+        let _listeners = AUTO_LISTENERS.blocking_lock();
         // Hold one port of the range (when it is free on this machine) and reserve another.
         let held = auto_range()
             .clone()
@@ -614,8 +798,7 @@ mod tests {
         assert!(ISOLATED_AUTO_RANGE.contains(&got), "{got}");
         assert!(is_auto(got) && is_auto(*AUTO_RANGE.start()));
         // The regular install keeps its range.
-        let regular = pick_in(range_for(false), "127.0.0.1", None, &[]).unwrap();
-        assert!(AUTO_RANGE.contains(&regular), "{regular}");
+        assert_eq!(range_for(false), AUTO_RANGE);
     }
 
     #[test]

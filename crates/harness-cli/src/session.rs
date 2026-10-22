@@ -266,6 +266,7 @@ pub struct InstanceOptions {
     /// The port was given explicitly (`--port`): fail when it is taken instead of falling back
     /// to another port.
     pub strict_port: bool,
+    pub reserved_ports: Vec<u16>,
     pub shutdown: Option<Arc<tokio::sync::Notify>>,
 }
 
@@ -279,6 +280,7 @@ impl InstanceOptions {
             browser: None,
             ephemeral_port: true,
             strict_port: false,
+            reserved_ports: Vec::new(),
             shutdown: None,
         }
     }
@@ -355,6 +357,7 @@ impl Instance {
         api.set_instance(Some(lock.clone()));
         api.set_shutdown_hook(options.shutdown.clone());
         api.set_strict_port(options.strict_port);
+        api.set_reserved_ports(options.reserved_ports);
         let mut settings = options.settings.clone();
         let started = if options.ephemeral_port {
             // Bound here and handed over: no other process can take the port in between.

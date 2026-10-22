@@ -63,6 +63,7 @@ pub struct GatewaySettings {
     /// --gateway`.
     pub enabled: bool,
     pub host: String,
+    #[cfg_attr(feature = "openapi", schema(default = 11435))]
     pub port: u16,
     /// A non-loopback bind must be allowed explicitly and always requires a token.
     pub allow_network: bool,
@@ -108,6 +109,7 @@ pub struct GatewaySettings {
     /// `GatewayStatus::ollama_warning` instead; Ollama's default port is also refused while
     /// Ollama is installed (not running), so a later Ollama start still works.
     pub ollama_port_enabled: bool,
+    #[cfg_attr(feature = "openapi", schema(default = 11434))]
     pub ollama_port: u16,
     /// Let `/api/pull` queue Hugging Face downloads (explicit `hf.co/<owner>/<repo>[:quant]`
     /// references only). Off by default.
@@ -166,7 +168,7 @@ impl Default for GatewaySettings {
         Self {
             enabled: false,
             host: DEFAULT_HOST.to_string(),
-            port: DEFAULT_PORT,
+            port: crate::ports::listener_default(DEFAULT_PORT),
             allow_network: false,
             require_token: false,
             cors_origins: Vec::new(),
@@ -180,7 +182,7 @@ impl Default for GatewaySettings {
             server_tools: BTreeMap::new(),
             text_tool_calls: BTreeMap::new(),
             ollama_port_enabled: false,
-            ollama_port: OLLAMA_DEFAULT_PORT,
+            ollama_port: crate::ports::listener_default(OLLAMA_DEFAULT_PORT),
             ollama_allow_pull: false,
             responses: responses::ResponsesSettings::default(),
             decision_emulation: true,
@@ -275,7 +277,7 @@ pub fn validate_settings(
         return Err(ERR_OLLAMA_PORT_CONFLICT.to_string());
     }
     if s.ollama_port == 0 {
-        s.ollama_port = OLLAMA_DEFAULT_PORT;
+        s.ollama_port = crate::ports::listener_default(OLLAMA_DEFAULT_PORT);
     }
     let mut origins = Vec::new();
     for raw in s.cors_origins.iter().filter(|o| !o.trim().is_empty()) {
@@ -562,13 +564,16 @@ mod tests {
     fn settings_validation() {
         let ok = validate_settings(&GatewaySettings::default(), 0, Some(11500)).unwrap();
         assert_eq!(ok.host, "127.0.0.1");
-        assert_eq!(ok.port, DEFAULT_PORT);
+        assert_eq!(ok.port, crate::ports::listener_default(DEFAULT_PORT));
         assert!(
             !ok.ollama_port_enabled && !ok.ollama_allow_pull,
             "Ollama extras are off"
         );
-        assert_eq!(ok.ollama_port, OLLAMA_DEFAULT_PORT);
-        for bad in [DEFAULT_PORT, 11500, 80] {
+        assert_eq!(
+            ok.ollama_port,
+            crate::ports::listener_default(OLLAMA_DEFAULT_PORT)
+        );
+        for bad in [ok.port, 11500, 80] {
             let s = GatewaySettings {
                 ollama_port_enabled: true,
                 ollama_port: bad,
@@ -581,7 +586,10 @@ mod tests {
         }
         // Stored settings from before the Ollama fields load with the defaults.
         let old: GatewaySettings = serde_json::from_str(r#"{"enabled": true}"#).unwrap();
-        assert_eq!(old.ollama_port, OLLAMA_DEFAULT_PORT);
+        assert_eq!(
+            old.ollama_port,
+            crate::ports::listener_default(OLLAMA_DEFAULT_PORT)
+        );
         assert!(!ok.enabled);
         assert!(!ok.token_required(), "loopback: no token by default");
 

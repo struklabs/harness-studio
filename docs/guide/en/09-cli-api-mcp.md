@@ -14,6 +14,8 @@ You do not need a terminal to chat, download models, or start servers. This chap
 
 The Developer settings and MCP connection pages below are **Advanced** pages. Switch using **Simple / Advanced** or open the page through the command palette; the interface level does not change CLI or API permissions.
 
+When `HARNESS_DATA_DIR` (or `--data-dir`) points outside the regular application data directory, automatically selected server, gateway, Control API, and optional Ollama-compatible listener ports use `12440-12499`. Separate isolated instances can run side by side without taking the installed app's default ports. Ports explicitly set in settings or command-line options still take precedence. Use the reported endpoint addresses; MCP over HTTP shares the Control API port, and OpenTelemetry exports to your configured collector without opening a listener.
+
 ## Turn on the Control API
 
 1. Open **Settings > Developer > Control API**.
