@@ -218,7 +218,15 @@
     return map;
   });
   /** The repo downloaded as a whole folder (MLX, Python engine): its one variant is that folder. */
-  let localFolder = $derived(repoId ? library.forRepo(repoId).find((m) => isRepoFolder(m, repoId)) : undefined);
+  // A sherpa-onnx voice is listed by its model file (`<repo>/model.int8.onnx`), so the folder that
+  // file sits in counts as the repo folder too.
+  let localFolder = $derived(
+    repoId
+      ? library
+          .forRepo(repoId)
+          .find((m) => isRepoFolder(m, repoId) || isRepoFolder({ ...m, path: normPath(m.path).replace(/\/[^/]+$/, '') }, repoId))
+      : undefined,
+  );
   function localFor(v: HfModelVariant): LocalModel | undefined {
     return localVariantFor(v, localByFile, variants.length === 1 ? localFolder : undefined);
   }

@@ -298,3 +298,9 @@ test('a card names the engine a repo needs instead of defaulting to whisper.cpp'
   assert.match(card, /whisper = compat\.runtime === 'whisper\.cpp'/);
   assert.match(card, /t\('hub\.compat_needs_engine', \{ runtime: compat\.runtime \}\)/);
 });
+
+test('a single-folder repo listed by its model file reads as downloaded in the drawer', () => {
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  // sherpa-onnx voices are library entries for `<repo>/model.int8.onnx`, not for the folder.
+  assert.match(drawer, /isRepoFolder\(\{ \.\.\.m, path: normPath\(m\.path\)\.replace\(/);
+});
