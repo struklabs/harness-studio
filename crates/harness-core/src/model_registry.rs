@@ -110,9 +110,15 @@ pub fn task_capabilities(task: &str) -> &'static [Capability] {
 }
 
 /// Capabilities of a Hub repo: its declared (or inferred) task, and a whisper ggml repo is
-/// speech recognition whatever its tag says.
+/// speech recognition whatever its tag says. A transformers document-QA repo (LayoutLM, Donut)
+/// answers through the Python pipeline in Read Document, not through chat.
 pub fn hub_capabilities(task: Option<&str>, format: ModelFormat) -> Vec<Capability> {
     let mut caps: Vec<Capability> = task.map(task_capabilities).unwrap_or(&[]).to_vec();
+    if task == Some("document-question-answering")
+        && matches!(format, ModelFormat::Safetensors | ModelFormat::Pytorch)
+    {
+        caps.retain(|c| *c != Capability::Chat);
+    }
     if format == ModelFormat::WhisperGgml && !caps.contains(&Capability::Asr) {
         caps.push(Capability::Asr);
     }
@@ -410,8 +416,13 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
     } else {
         format.runtime()
     };
+    let mut capabilities = local_capabilities(caps);
+    // A llama.cpp chat model that sees answers video questions: the gateway samples frames.
+    if format == ModelFormat::Gguf && caps.chat && caps.vision {
+        capabilities.push(Capability::Video);
+    }
     ModelRecord {
-        capabilities: local_capabilities(caps),
+        capabilities,
         format,
         runtime: runtime.map(String::from),
         compatibility: standalone(model.kind).then(|| match (tts, runtime) {
@@ -644,6 +655,17 @@ mod tests {
             vec![Capability::Asr]
         );
         assert!(hub_capabilities(None, ModelFormat::Safetensors).is_empty());
+        assert_eq!(
+            hub_capabilities(
+                Some("document-question-answering"),
+                ModelFormat::Safetensors
+            ),
+            vec![Capability::Vision]
+        );
+        assert_eq!(
+            hub_capabilities(Some("document-question-answering"), ModelFormat::Gguf),
+            vec![Capability::Chat, Capability::Vision]
+        );
     }
 
     /// Formats no Harness runtime runs stay recorded as "no runtime", with their capability.
@@ -701,6 +723,44 @@ mod tests {
         let rec = local_record(&model, &caps);
         assert_eq!(rec.format, ModelFormat::WhisperGgml);
         assert_eq!(rec.runtime.as_deref(), Some("whisper.cpp"));
+    }
+
+    /// A llama.cpp model that chats and sees answers video questions (the gateway samples
+    /// frames); the model picker said "Video: unsupported" for SmolVLM2 Video GGUF.
+    #[test]
+    fn gguf_vision_chat_models_take_video_questions() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir
+            .path()
+            .join("sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8");
+        std::fs::create_dir_all(&folder).unwrap();
+        for f in [
+            "encoder.int8.onnx",
+            "decoder.int8.onnx",
+            "joiner.int8.onnx",
+            "tokens.txt",
+        ] {
+            std::fs::write(folder.join(f), b"x").unwrap();
+        }
+        let mut model =
+            crate::asr::to_local_model(&crate::asr::detect(&folder).unwrap(), dir.path());
+        model.kind = ModelKind::Llm;
+        model.path = dir.path().join("SmolVLM2-256M-Video-Instruct-Q8_0.gguf");
+        let seeing = ModelCaps {
+            chat: true,
+            vision: true,
+            ..Default::default()
+        };
+        let rec = local_record(&model, &seeing);
+        assert_eq!(rec.format, ModelFormat::Gguf);
+        assert!(rec.capabilities.contains(&Capability::Video));
+        let text = ModelCaps {
+            chat: true,
+            ..Default::default()
+        };
+        assert!(!local_record(&model, &text)
+            .capabilities
+            .contains(&Capability::Video));
     }
 
     /// Folders of the Python engine (a diffusers pipeline, a transformers task model) name it,

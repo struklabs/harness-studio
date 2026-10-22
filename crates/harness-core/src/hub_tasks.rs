@@ -1006,9 +1006,10 @@ const TABLE: &[Row] = &[
         Some("vision"),
         &[(crate::engine::PYTHON_HF, Yes)],
     ),
+    // The gateway samples frames and sends them to a vision projector (llama.cpp VLMs).
     row_alt(
         "video-text-to-text",
-        No,
+        Yes,
         Some("vision"),
         &[(crate::engine::PYTHON_HF, Yes)],
     ),
@@ -1185,6 +1186,18 @@ mod tests {
             &serde_json::json!({"id":"HuggingFaceTB/SmolVLM2-256M-Video-Instruct", "pipeline_tag":"image-text-to-text", "library_name":"transformers"}),
         );
         assert_eq!(result.pipeline_tag.as_deref(), Some("video-text-to-text"));
+    }
+
+    #[test]
+    fn video_questions_run_on_llama_cpp_vision_models() {
+        // The Hub said "incompatible" for SmolVLM2 Video GGUF although the gateway answers
+        // video questions with sampled frames through the vision projector.
+        let caps = crate::capabilities::testdata::caps("b11236");
+        let features = feature_status(&caps, FeatureContext::default());
+        let list = task_support(Some(&caps), &features, &[]);
+        let row = support_of(&list, "video-text-to-text");
+        assert_eq!(row.support, Yes);
+        assert_eq!(row.feature.as_deref(), Some("vision"));
     }
 
     #[test]

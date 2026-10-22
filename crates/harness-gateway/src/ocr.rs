@@ -171,7 +171,7 @@ fn core_error(e: &str) -> GatewayError {
             .details(json!({"error_key": e}))
     };
     if e.starts_with("ocr.rasterizer_unavailable") {
-        keyed(503, "rasterizer_unavailable", "This PDF has pages without a text layer. Turning them into images needs the Python engine; install it in Settings > Runtime, then try again.".into())
+        keyed(503, "rasterizer_unavailable", "This PDF has pages without a text layer. Turning them into images needs the Python engine; install or update it in Settings > Runtime, then try again.".into())
     } else if e.starts_with("ocr.page_too_large") {
         keyed(
             413,
