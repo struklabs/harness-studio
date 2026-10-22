@@ -286,4 +286,21 @@ test('a safetensors chat repo on the Python engine is told apart and weighed aga
   const repo = { ...chat, pipeline_tag: 'text-generation' };
   assert.equal(canConvert(repo), true);
   assert.equal(canConvert({ ...repo, pipeline_tag: 'fill-mask' }), false);
+  // The drawer still lists the checkpoint's download for the Python engine: the conversion panel
+  // must not take the file table's place for these repos.
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  assert.match(drawer, /\{#if convertible && repoId && !pythonChat\}/);
+  assert.match(drawer, /\{#if convertible && repoId && pythonChat\}\{@render convertTools\(repoId\)\}\{\/if\}/);
+});
+
+test('a card names the engine a repo needs instead of defaulting to whisper.cpp', () => {
+  const card = readFileSync(new URL('../src/lib/components/hub/RepoCard.svelte', import.meta.url), 'utf8');
+  assert.match(card, /whisper = compat\.runtime === 'whisper\.cpp'/);
+  assert.match(card, /t\('hub\.compat_needs_engine', \{ runtime: compat\.runtime \}\)/);
+});
+
+test('a single-folder repo listed by its model file reads as downloaded in the drawer', () => {
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  // sherpa-onnx voices are library entries for `<repo>/model.int8.onnx`, not for the folder.
+  assert.match(drawer, /isRepoFolder\(\{ \.\.\.m, path: normPath\(m\.path\)\.replace\(/);
 });

@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { audioLlmTranslates, dictationFamily, isAudioLlmDefinition, isTranscriptionDefinition } from '../src/lib/components/playground/speechModels.ts';
 
 const def = (alias, path, mmproj) => ({ alias, base: { kind: 'local', path }, mmproj });
@@ -49,4 +50,13 @@ test('transcribe.cpp models transcribe on their managed engine and translate onl
   // Its environment is managed (Settings installs it); no runtime entry is needed, only the gateway.
   assert.equal(dictationRequirement('parakeet', [], false, [], [parakeet], [], headers), 'gateway');
   assert.equal(dictationRequirement('parakeet', [], true, [], [parakeet], [], headers), null);
+});
+
+test('the Speech panel lists Python-engine recognition models in their own group', () => {
+  const panel = readFileSync(new URL('../src/lib/components/playground/TranscribePanel.svelte', import.meta.url), 'utf8');
+  assert.match(panel, /\['python-hf', 'sasr\.group_python'\]/);
+  const rust = readFileSync(new URL('../src-tauri/src/commands/asr.rs', import.meta.url), 'utf8');
+  // faster-whisper (CTranslate2) and transformers folders come from the Python engine's detection.
+  assert.match(rust, /engine_folders\(is_python_asr_dir\)/);
+  assert.match(rust, /python_hf::detect\(dir\)\.as_deref\(\)\s*== Some\("automatic-speech-recognition"\)/);
 });

@@ -2399,6 +2399,11 @@ impl DownloadManager {
         if crate::hub_compat::native_speech_format(&info, &paths).is_some() {
             return safetensors_variants(repo_id, &items);
         }
+        // A CTranslate2 Whisper export (faster-whisper): the Python engine loads its root files.
+        let ct2 = ct2_whisper_variants(repo_id, &items)?;
+        if !ct2.is_empty() {
+            return Ok(ct2);
+        }
         if repo_id == "audio-cpp/audio.cpp-gguf" || crate::hub_compat::is_audio_cpp_repo(&info) {
             return audio_cpp_variants(
                 repo_id,
@@ -5043,6 +5048,88 @@ fn safetensors_variants(
     }])
 }
 
+/// Root files of a CTranslate2 Whisper export that faster-whisper reads.
+const CT2_WHISPER_FILES: [&str; 6] = [
+    "model.bin",
+    "config.json",
+    "tokenizer.json",
+    "vocabulary.json",
+    "vocabulary.txt",
+    "preprocessor_config.json",
+];
+
+/// The variant of a CTranslate2 Whisper export (`Systran/faster-whisper-*`, the layout of
+/// [`crate::hub_compat::ct2_whisper_compatibility`]): its root files in one download, which
+/// [`crate::engine::python_hf::is_ct2_whisper_dir`] then recognises. Empty for any other repo.
+fn ct2_whisper_variants(
+    repo_id: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    if !repo_id.to_ascii_lowercase().contains("whisper") {
+        return Ok(Vec::new());
+    }
+    let root: Vec<(String, u64, Option<String>)> = items
+        .iter()
+        .filter_map(|item| {
+            let path = item.get("path").and_then(|v| v.as_str())?;
+            if path.contains('/') {
+                return None;
+            }
+            let size = item
+                .get("lfs")
+                .and_then(|l| l.get("size"))
+                .and_then(|v| v.as_u64())
+                .or_else(|| item.get("size").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+            let sha256 = item
+                .get("lfs")
+                .and_then(|l| l.get("oid"))
+                .and_then(|v| v.as_str())
+                .and_then(valid_sha256);
+            Some((path.to_string(), size, sha256))
+        })
+        .collect();
+    let has = |name: &str| root.iter().any(|(p, _, _)| p == name);
+    let safetensors = root
+        .iter()
+        .any(|(p, _, _)| p.to_ascii_lowercase().ends_with(".safetensors"));
+    if safetensors
+        || !has("model.bin")
+        || !has("config.json")
+        || !(has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+    {
+        return Ok(Vec::new());
+    }
+    let mut parts: Vec<&(String, u64, Option<String>)> = root
+        .iter()
+        .filter(|(p, _, _)| CT2_WHISPER_FILES.contains(&p.as_str()))
+        .collect();
+    parts.sort_by(|a, b| a.0.cmp(&b.0));
+    let total = parts.len() as u32;
+    let shards = parts
+        .iter()
+        .enumerate()
+        .map(|(i, (path, size, sha256))| {
+            Ok(HfShardInfo {
+                download_url: DownloadManager::hf_file_url(repo_id, "resolve", path)?.to_string(),
+                filename: path.clone(),
+                size_bytes: *size,
+                shard_index: i as u32 + 1,
+                total_shards: total,
+                sha256: sha256.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(vec![HfModelVariant {
+        not_runnable: None,
+        name: repo_id.rsplit('/').next().unwrap_or(repo_id).to_string(),
+        quantization: "CT2".to_string(),
+        total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+        is_split: false,
+        shards,
+    }])
+}
+
 /// The variant of a repo in mflux's saved layout ([`crate::hub_compat::is_mflux_layout`]): one
 /// download of the model card (the mflux engine reads its `base_model`) and every file of
 /// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/` (FLUX.1's `text_encoder_2/` and
@@ -6766,6 +6853,48 @@ mod tests {
             repos[4].compatibility,
             Compatibility::Unsupported { .. }
         ));
+    }
+
+    #[test]
+    fn a_faster_whisper_export_downloads_its_root_files_as_one_variant() {
+        let file =
+            |p: &str, size: u64| serde_json::json!({"type": "file", "path": p, "size": size});
+        let oid = "b".repeat(64);
+        let items = vec![
+            file(".gitattributes", 1),
+            file("README.md", 5),
+            file("config.json", 2_000),
+            serde_json::json!({"type": "file", "path": "model.bin", "size": 100, "lfs": {"size": 75_000_000, "oid": oid}}),
+            file("tokenizer.json", 2_000_000),
+            file("vocabulary.txt", 400_000),
+        ];
+        let v = ct2_whisper_variants("Systran/faster-whisper-tiny", &items).unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(
+            (v[0].name.as_str(), v[0].quantization.as_str()),
+            ("faster-whisper-tiny", "CT2")
+        );
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "config.json",
+                "model.bin",
+                "tokenizer.json",
+                "vocabulary.txt"
+            ]
+        );
+        assert_eq!(v[0].total_size_bytes, 77_402_000);
+        assert_eq!(v[0].shards[1].sha256.as_deref(), Some(oid.as_str()));
+        // Another CTranslate2 repo (a translation model) and a transformers Whisper are not this.
+        assert!(ct2_whisper_variants("Systran/nllb-200-ct2", &items)
+            .unwrap()
+            .is_empty());
+        let mut transformers = items.clone();
+        transformers.push(file("model.safetensors", 1));
+        assert!(ct2_whisper_variants("openai/whisper-tiny", &transformers)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

@@ -234,13 +234,16 @@
               {/each}
             </optgroup>
           {/if}
-          {#if engineModels.length > 0}
-            <optgroup label={t('sasr.group_mlx')}>
-              {#each engineModels as m (m.id)}
-                <option value={m.name}>{m.name}</option>
-              {/each}
-            </optgroup>
-          {/if}
+          {#each [['mlx-audio', 'sasr.group_mlx'], ['python-hf', 'sasr.group_python']] as const as [family, label] (family)}
+            {@const group = engineModels.filter(m => m.family === family)}
+            {#if group.length > 0}
+              <optgroup label={t(label)}>
+                {#each group as m (m.id)}
+                  <option value={m.name}>{m.name}</option>
+                {/each}
+              </optgroup>
+            {/if}
+          {/each}
           {#if sherpaModels.length > 0}
             <optgroup label={t('sasr.group_sherpa')}>
               {#each sherpaModels as m (m.id)}

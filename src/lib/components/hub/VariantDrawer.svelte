@@ -218,7 +218,15 @@
     return map;
   });
   /** The repo downloaded as a whole folder (MLX, Python engine): its one variant is that folder. */
-  let localFolder = $derived(repoId ? library.forRepo(repoId).find((m) => isRepoFolder(m, repoId)) : undefined);
+  // A sherpa-onnx voice is listed by its model file (`<repo>/model.int8.onnx`), so the folder that
+  // file sits in counts as the repo folder too.
+  let localFolder = $derived(
+    repoId
+      ? library
+          .forRepo(repoId)
+          .find((m) => isRepoFolder(m, repoId) || isRepoFolder({ ...m, path: normPath(m.path).replace(/\/[^/]+$/, '') }, repoId))
+      : undefined,
+  );
   function localFor(v: HfModelVariant): LocalModel | undefined {
     return localVariantFor(v, localByFile, variants.length === 1 ? localFolder : undefined);
   }
@@ -517,6 +525,19 @@
   let filtersActive = $derived(quantFilter !== 'ALL' || sizeFilter !== 'ALL');
 </script>
 
+{#snippet convertTools(repoId: string)}
+  <!-- Training is an Advanced-level page; Simple mode does not offer its downloads. -->
+  {#if uiLevel.advanced}
+    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+      <span class="min-w-0 flex-1 text-muted-foreground">{t('training.base_drawer_hint')}</span>
+      <Button variant="outline" size="xs" disabled={trainingBaseBusy} onclick={() => downloadForTraining(repoId)}>
+        <Download class="size-3.5" />{t('training.base_drawer_button')}
+      </Button>
+    </div>
+  {/if}
+  <ConvertPanel {repoId} />
+{/snippet}
+
 <Sheet.Root open={!!repo} onOpenChange={(o) => !o && onClose()}>
   <Sheet.Content side="right" class="data-[side=right]:w-[min(680px,100vw)] gap-0 p-0 data-[side=right]:sm:max-w-none">
     {#if repo}
@@ -718,17 +739,8 @@
                 </div>
               {/if}
 
-              {#if convertible && repoId}
-                <!-- Training is an Advanced-level page; Simple mode does not offer its downloads. -->
-                {#if uiLevel.advanced}
-                  <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
-                    <span class="min-w-0 flex-1 text-muted-foreground">{t('training.base_drawer_hint')}</span>
-                    <Button variant="outline" size="xs" disabled={trainingBaseBusy} onclick={() => downloadForTraining(repoId)}>
-                      <Download class="size-3.5" />{t('training.base_drawer_button')}
-                    </Button>
-                  </div>
-                {/if}
-                <ConvertPanel {repoId} />
+              {#if convertible && repoId && !pythonChat}
+                {@render convertTools(repoId)}
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
@@ -909,6 +921,8 @@
                   </Table.Root>
                 </div>
               {/if}
+              <!-- A Python-engine chat repo downloads as it is (the table above); converting stays an option. -->
+              {#if convertible && repoId && pythonChat}{@render convertTools(repoId)}{/if}
             </div>
           {/if}
         </div>

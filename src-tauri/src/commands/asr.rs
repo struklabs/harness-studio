@@ -1,7 +1,8 @@
 // Speech recognition with sherpa-onnx models (Parakeet, SenseVoice, Omnilingual...): the models
-// on disk and the recommended downloads, plus the library's mlx-audio recognition folders. The
-// text itself is made by the gateway (`/v1/audio/transcriptions`), which the Playground and the
-// chat dictation call like they call it for a whisper model; nothing here recognises speech.
+// on disk and the recommended downloads, plus the library's mlx-audio and Python-engine
+// recognition folders. The text itself is made by the gateway (`/v1/audio/transcriptions`), which
+// the Playground and the chat dictation call like they call it for a whisper model; nothing here
+// recognises speech.
 
 /// What the Speech tab needs to draw its sherpa-onnx recognition section.
 #[derive(serde::Serialize)]
@@ -12,8 +13,9 @@ pub(crate) struct AsrOverview {
     catalog: Vec<AsrCatalogRow>,
     /// A sherpa-onnx runtime is registered.
     runtime_installed: bool,
-    /// Recognition models of an engine (mlx-audio: Whisper, Parakeet) in the library: the
-    /// gateway serves them by their definition's alias, which is made here when missing.
+    /// Recognition models of an engine (mlx-audio: Whisper, Parakeet; Python: faster-whisper,
+    /// transformers) in the library: the gateway serves them by their definition's alias, which
+    /// is made here when missing.
     engine_models: Vec<EngineAsrModel>,
 }
 
@@ -29,9 +31,17 @@ pub(crate) struct EngineAsrModel {
     translates: bool,
 }
 
-/// The library's mlx-audio speech recognition folders.
+/// A speech recognition folder of the Python engine: a CTranslate2 Whisper export
+/// (faster-whisper) or a transformers checkpoint. An MLX folder is mlx-audio's.
+fn is_python_asr_dir(dir: &std::path::Path) -> bool {
+    !harness_core::engine::mlx::is_stt_dir(dir)
+        && harness_core::engine::python_hf::detect(dir).as_deref()
+            == Some("automatic-speech-recognition")
+}
+
+/// The library's mlx-audio and Python-engine speech recognition folders.
 fn engine_asr_models() -> Vec<EngineAsrModel> {
-    engine_folders(harness_core::engine::mlx::is_stt_dir)
+    let mlx = engine_folders(harness_core::engine::mlx::is_stt_dir)
         .into_iter()
         .map(|(m, name)| EngineAsrModel {
             id: m.id.clone(),
@@ -39,8 +49,18 @@ fn engine_asr_models() -> Vec<EngineAsrModel> {
             family: harness_core::engine::MLX_AUDIO,
             size_bytes: m.size_bytes,
             translates: m.architecture.as_deref() == Some("whisper"),
-        })
-        .collect()
+        });
+    let python = engine_folders(is_python_asr_dir)
+        .into_iter()
+        .map(|(m, name)| EngineAsrModel {
+            id: m.id.clone(),
+            name,
+            family: harness_core::engine::PYTHON_HF,
+            size_bytes: m.size_bytes,
+            translates: harness_core::engine::python_hf::is_ct2_whisper_dir(&m.path)
+                || m.architecture.as_deref() == Some("whisper"),
+        });
+    mlx.chain(python).collect()
 }
 
 #[derive(serde::Serialize)]
