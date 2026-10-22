@@ -54,3 +54,9 @@ export function groupCloudModels(models: CloudModel[]): { provider: string; labe
 export function formatPrice(value: number): string {
   return value === 0 ? '0' : value < 0.01 ? value.toPrecision(2) : String(Math.round(value * 100) / 100);
 }
+
+/** A price field's value as sent to `cloud_set_prices`: a number input bound with `bind:value`
+ *  holds a number once typed in (null when cleared), a string while untouched. */
+export function priceValue(v: string | number | null | undefined): number | null {
+  return v == null || String(v).trim() === '' ? null : Number(v);
+}

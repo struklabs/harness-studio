@@ -7,7 +7,7 @@ import { parseError, rawError } from '#lib/errors.js';
 import { localizeError } from '#lib/network.js';
 import { app } from '#lib/stores/app.svelte.js';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
-import { familyFromError } from '#lib/engines.js';
+import { engineLabel, familyFromError } from '#lib/engines.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
 import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, ttsRequirement, ttsSupportsSpeed, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
@@ -172,13 +172,13 @@ class ReadAloud {
         const parsed = parseError(rawError(e));
         const helper = parsed?.key === 'tts.crispasr_helper_missing' ? String(parsed.params.helper ?? '') : null;
         toast.error(
-          t('speak.read_failed', { error: family ? t('lib.runtime_needs_hint', { runtime: family }) : localizeError(e) }),
+          t('speak.read_failed', { error: family ? t('lib.runtime_needs_hint', { runtime: engineLabel(family) }) : localizeError(e) }),
           helper
             ? { action: { label: t('speak.download_helper'), onClick: () => {
               void invoke('download_crispasr_helper', { id: helper }).then(() => toast.success(t('crisp.helper_queued'))).catch(e => toast.error(localizeError(e)));
             } } }
             : family && engineInstall.canInstall(family)
-            ? { action: { label: t('eng.install', { runtime: family }), onClick: () => void engineInstall.install(family) } }
+            ? { action: { label: t('eng.install', { runtime: engineLabel(family) }), onClick: () => void engineInstall.install(family) } }
             : undefined,
         );
       }

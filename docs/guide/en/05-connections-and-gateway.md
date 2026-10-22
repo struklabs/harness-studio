@@ -220,7 +220,7 @@ Next: [Tools](06-tools.md).
 
 `POST /v1/ocr` and `POST /v1/document/qa` use the gateway's **pipelines** endpoint
 policy and the **inference** token scope. Both accept JSON with a local `model` alias
-and either `document` (a base64 data URL) or `pages` (1?16 image data URLs in reading
+and either `document` (a base64 data URL) or `pages` (1 to 16 image data URLs in reading
 order). Remote URLs are not fetched. Supported images are PNG, JPEG, WebP and GIF;
 `document` also accepts `data:application/pdf;base64,...`. The decoded total is limited
 to 20 MiB, within the gateway's 64 MiB request body limit.

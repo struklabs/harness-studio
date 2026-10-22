@@ -7,6 +7,7 @@
   // the error with a retry button.
   import { LoaderCircle, Download } from '@lucide/svelte';
   import { t } from '#lib/i18n.svelte.js';
+  import { engineLabel } from '#lib/engines.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
@@ -28,6 +29,8 @@
   }
   let { family, hint = true, hintText, size = 'xs', class: className, onInstalled, auto = false }: Props = $props();
 
+  /** The family's display name ("MLX Embeddings", not `mlx-embed`). */
+  let name = $derived(engineLabel(family));
   let st = $derived(engineInstall.state(family));
   let manual = $derived(!engineInstall.canInstall(family));
   // An installed environment from an older lock is updated, not installed.
@@ -57,22 +60,22 @@
       <span>{t('audio_cpp.needs_engine')}</span>
       <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed', t('audio_cpp.experimental'))}>{t('audio_cpp.experimental')}</Button>
     {:else}
-    {#if hint}<span class="min-w-0 flex-1">{hintText ?? t(update ? 'eng.update_hint' : 'lib.runtime_needs_hint', { runtime: family })}</span>{/if}
+    {#if hint}<span class="min-w-0 flex-1">{hintText ?? t(update ? 'eng.update_hint' : 'lib.runtime_needs_hint', { runtime: name })}</span>{/if}
     {#if manual}
-      <span class="text-muted-foreground">{t('eng.manual', { runtime: family })}</span>
+      <span class="text-muted-foreground">{t('eng.manual', { runtime: name })}</span>
     {:else}
       <Button type="button" variant="outline" {size} class="shrink-0" disabled={engineInstall.anyBusy} onclick={install}>
         {#if st.busy}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
         {st.busy
-          ? t(st.pct === null ? (auto ? verb.auto : verb.busy) : auto ? verb.autoPct : verb.busyPct, { runtime: family, pct: st.pct ?? 0 })
-          : t(st.problem === 'failed' ? 'eng.retry' : verb.idle, { runtime: family })}
+          ? t(st.pct === null ? (auto ? verb.auto : verb.busy) : auto ? verb.autoPct : verb.busyPct, { runtime: name, pct: st.pct ?? 0 })
+          : t(st.problem === 'failed' ? 'eng.retry' : verb.idle, { runtime: name })}
       </Button>
     {/if}
     {#if st.problem === 'unverified'}
-      <span class="min-w-0 basis-full text-warning" role="alert">{t('eng.unverified', { runtime: family })}</span>
+      <span class="min-w-0 basis-full text-warning" role="alert">{t('eng.unverified', { runtime: name })}</span>
     {:else if st.problem === 'failed' && st.error}
       <details class="min-w-0 basis-full text-destructive" role="alert">
-        <summary class="cursor-pointer [overflow-wrap:anywhere]">{t('eng.failed_summary', { runtime: family })}</summary>
+        <summary class="cursor-pointer [overflow-wrap:anywhere]">{t('eng.failed_summary', { runtime: name })}</summary>
         <pre class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere]">{st.error}</pre>
       </details>
     {/if}

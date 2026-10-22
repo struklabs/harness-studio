@@ -12,7 +12,7 @@
   import { Badge } from '#lib/components/ui/badge/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { TriangleAlert } from '@lucide/svelte';
-  import { filterCloudModels, formatPrice, type CloudModel } from '../playground/cloudModels';
+  import { filterCloudModels, formatPrice, priceValue, type CloudModel } from '../playground/cloudModels';
   import type { AnalyticsSummary } from '#lib/types.js';
 
   type Kind = CloudModel['kind'];
@@ -66,7 +66,7 @@
   let probe = $state<Probe | null>(null);
   let probing = $state(false);
   let costs = $state<Record<string, { usd: number; requests: number }>>({});
-  let priceEdit = $state<Record<string, { model: string; input: string; output: string }>>({});
+  let priceEdit = $state<Record<string, { model: string; input: string | number | null; output: string | number | null }>>({});
   let priceMessage = $state<Record<string, string>>({});
   let expanded = $state<Record<string, boolean>>({});
   let filters = $state<Record<string, string>>({});
@@ -220,10 +220,9 @@
   async function savePrice(provider: Provider, clear: boolean) {
     const edit = priceEdit[provider.id];
     if (!edit?.model) return;
-    const num = (v: string) => (v.trim() === '' ? null : Number(v));
     const prices = { ...(provider.prices ?? {}) };
     if (clear) delete prices[edit.model];
-    else prices[edit.model] = { input: num(edit.input), output: num(edit.output) };
+    else prices[edit.model] = { input: priceValue(edit.input), output: priceValue(edit.output) };
     busy = true;
     priceMessage[provider.id] = '';
     try {

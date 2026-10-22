@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cloudLabel, filterCloudModels, formatPrice, groupCloudModels, isCloudModel, isExternalModel } from '../src/lib/components/playground/cloudModels.ts';
+import { cloudLabel, filterCloudModels, formatPrice, groupCloudModels, isCloudModel, isExternalModel, priceValue } from '../src/lib/components/playground/cloudModels.ts';
 
 const row = (provider, model, label = 'OpenAI') => ({
   id: `cloud:${provider}/${model}`, model, provider, kind: 'openai', label, state: 'online',
@@ -35,4 +35,14 @@ test('prices stay short', () => {
   assert.equal(formatPrice(0.15), '0.15');
   assert.equal(formatPrice(2.5), '2.5');
   assert.equal(formatPrice(0.0012), '0.0012');
+});
+
+test('price fields read typed numbers, untouched strings and cleared inputs', () => {
+  assert.equal(priceValue(1000), 1000);
+  assert.equal(priceValue('2.5'), 2.5);
+  assert.equal(priceValue(''), null);
+  assert.equal(priceValue('  '), null);
+  assert.equal(priceValue(null), null);
+  assert.equal(priceValue(undefined), null);
+  assert.equal(priceValue(0), 0);
 });

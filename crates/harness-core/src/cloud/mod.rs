@@ -1316,7 +1316,7 @@ pub struct ProbeResult {
 }
 
 /// A model a connection check found: the provider's model id and what is known about it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProbeModel {
     /// The provider's model id (`CloudModel` does not serialize its own).

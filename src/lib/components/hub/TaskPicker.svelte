@@ -9,6 +9,7 @@
   import { QUICK_TASKS, TASKS, TASK_GROUPS, taskInfo, type HubTask, type TaskSupport } from './tasks';
   import { taskSupportStore } from './taskSupport.svelte';
   import { onMount } from 'svelte';
+  import { engineLabel } from '#lib/engines.js';
 
   interface Props {
     /** HF `pipeline_tag`; '' = any task. */
@@ -47,7 +48,7 @@
     const info = taskSupportStore.info(task.id);
     if (!info) return task.hf;
     const parts = [task.hf, t(SUPPORT[info.support].key)];
-    if (info.needs_runtime) parts.push(t('lib.runtime_needs', { runtime: info.needs_runtime }));
+    if (info.needs_runtime) parts.push(t('lib.runtime_needs', { runtime: engineLabel(info.needs_runtime) }));
     else if (info.runtime) parts.push(info.runtime);
     if (info.runtime_missing) parts.push(t('hub.task_runtime_missing', { flag: info.flag ?? info.feature ?? '' }));
     else if (info.verified) parts.push(t('hub.task_runtime_verified'));
