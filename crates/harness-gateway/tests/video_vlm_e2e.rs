@@ -51,7 +51,8 @@ async fn qwen_understands_video_through_gateway() {
     def.mmproj = Some(projector);
     def.load
         .insert("runtime".into(), ParamValue::Text(runtime.id));
-    def.load.insert("context_size".into(), ParamValue::Int(8192));
+    def.load
+        .insert("context_size".into(), ParamValue::Int(8192));
     def.load.insert("gpu_layers".into(), ParamValue::Int(99));
     def.load.insert("parallel_slots".into(), ParamValue::Int(1));
     def.load.insert("threads".into(), ParamValue::Int(2));
