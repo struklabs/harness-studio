@@ -1,7 +1,11 @@
 import type { TrainingJob, TrainingStatus } from '#lib/training-types.js';
 
-/** Planning estimate only: tensor mix, tokenizer and small-model overhead vary. */
-export function estimateGgufBytes(params: number, quant: import('#lib/training-types.js').TrainingQuant): number {
+/** Planning estimate only: tensor mix, tokenizer and small-model overhead vary. The backend's
+ *  per-type size (`estimate.gguf_bytes`, which knows the embedding and k-quant fallbacks) wins;
+ *  runs created before it have only the parameter count. */
+export function estimateGgufBytes(params: number, quant: import('#lib/training-types.js').TrainingQuant, sizes?: Partial<Record<string, number>>): number {
+  const known = sizes?.[quant];
+  if (known) return known;
   const bits = { F16: 16, Q8_0: 8.5, Q4_K_M: 4.9, Q5_K_M: 5.7 }[quant];
   return Math.ceil(params * bits / 8 + 4 * 1024 * 1024);
 }

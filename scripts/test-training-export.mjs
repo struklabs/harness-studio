@@ -16,6 +16,12 @@ test('GGUF size choices are ordered and distinguish quantization from full preci
   const batchBytes = selected.reduce((sum, q) => sum + estimateGgufBytes(params, q), 0);
   assert.ok(batchBytes > sizes[3] + sizes[2]);
 });
+test("the backend's per-type size wins; older runs fall back to the parameter count", () => {
+  const sizes = { Q4_K_M: 384_950_517, Q8_0: 527_006_968 };
+  assert.equal(estimateGgufBytes(494_032_768, 'Q4_K_M', sizes), 384_950_517);
+  assert.equal(estimateGgufBytes(494_032_768, 'F16', sizes), estimateGgufBytes(494_032_768, 'F16'));
+  assert.equal(estimateGgufBytes(494_032_768, 'Q8_0', undefined), estimateGgufBytes(494_032_768, 'Q8_0'));
+});
 test('failed GGUF export can be retried, but running export and training cannot overlap', () => {
   const job = { status: 'done', checkpoint_step: 5, export: { status: 'running' } };
   assert.equal(canExport(job), false);

@@ -68,7 +68,7 @@
           <legend>{t('training.export_quant')}</legend>
           {#each EXPORT_QUANTS as q}
             <label class="flex items-center gap-1"><input type="checkbox" bind:group={quants} value={q} disabled={busy} />{q}
-              <span class="text-xs text-muted-foreground">{formatBytes(estimateGgufBytes(job?.estimate.params ?? 0, q), 1)}</span>
+              <span class="text-xs text-muted-foreground">{formatBytes(estimateGgufBytes(job?.estimate.params ?? 0, q, job?.estimate.gguf_bytes), 1)}</span>
             </label>
           {/each}
         </fieldset>

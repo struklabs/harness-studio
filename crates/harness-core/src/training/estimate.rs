@@ -25,6 +25,11 @@ pub struct Estimate {
     pub seconds: u64,
     pub seconds_per_step: f64,
     pub tokens_per_step: u64,
+    /// Size of a merged GGUF export per type (`Q4_K_M`...), with the converter's estimate: the
+    /// embedding and the matrices a k-quant cannot hold are stored wider. Empty for runs
+    /// created before it was computed.
+    #[serde(default)]
+    pub gguf_bytes: BTreeMap<String, u64>,
 }
 
 /// What the estimate reads from a model folder.
@@ -104,6 +109,33 @@ pub fn model_shape(dir: &Path) -> Result<ModelShape, String> {
         vocab,
         quant_bits,
     })
+}
+
+/// Merged GGUF export sizes of a base model ([`Estimate::gguf_bytes`]).
+pub fn gguf_sizes(shape: &ModelShape) -> BTreeMap<String, u64> {
+    let embedding = shape.vocab * shape.hidden;
+    let intermediate = (shape.intermediate > 0).then_some(shape.intermediate);
+    let fallback = crate::convert::plan::fallback_parameters(
+        shape.hidden,
+        shape.layers,
+        intermediate,
+        shape.params,
+        embedding,
+    );
+    [
+        super::ExportQuant::Q4_K_M,
+        super::ExportQuant::Q5_K_M,
+        super::ExportQuant::Q8_0,
+        super::ExportQuant::F16,
+    ]
+    .into_iter()
+    .map(|q| {
+        let size =
+            crate::convert::plan::estimate_with(shape.params, embedding, fallback, 0, q.as_str())
+                .size_bytes;
+        (q.as_str().to_string(), size)
+    })
+    .collect()
 }
 
 /// Free memory of the device the job trains on. MLX gets the unified-memory budget the job
@@ -211,6 +243,7 @@ pub fn estimate_with(
         seconds: (per_step * f64::from(steps)) as u64 + 20,
         seconds_per_step: per_step,
         tokens_per_step: tokens_per_step as u64,
+        gguf_bytes: gguf_sizes(shape),
     }
 }
 
@@ -467,6 +500,34 @@ mod tests {
         let qlora = estimate(&full, Method::Qlora, Device::Mlx, 8, 512, 10, 200, 1, 1);
         let lora = estimate(&full, Method::Lora, Device::Mlx, 8, 512, 10, 200, 1, 1);
         assert!(qlora.memory_bytes * 2 < lora.memory_bytes);
+    }
+
+    /// Measured on an M1: the merged export of an MLX run on Qwen2.5-0.5B-Instruct (hidden 896,
+    /// so its attention and gate / up matrices fall back from k-quants) was 397.8 MB as Q4_K_M
+    /// and 531.1 MB as Q8_0. The parameter-count rule said 292.8 / 504.9 MB.
+    #[test]
+    fn gguf_sizes_match_a_measured_small_export() {
+        let qwen = ModelShape {
+            params: 494_032_768,
+            hidden: 896,
+            layers: 24,
+            intermediate: 4864,
+            vocab: 151_936,
+            quant_bits: Some(4),
+        };
+        let sizes = gguf_sizes(&qwen);
+        let near = |quant: &str, real: f64| {
+            let estimate = sizes[quant] as f64;
+            assert!(
+                (estimate / real - 1.0).abs() < 0.05,
+                "{quant}: {estimate} vs {real}"
+            );
+        };
+        near("Q4_K_M", 397_807_584.0);
+        near("Q8_0", 531_067_872.0);
+        assert!(sizes["Q4_K_M"] < sizes["Q5_K_M"] && sizes["Q8_0"] < sizes["F16"]);
+        let job = estimate(&qwen, Method::Lora, Device::Mlx, 8, 512, 10, 200, 1, 1);
+        assert_eq!(job.gguf_bytes, sizes);
     }
 
     #[test]

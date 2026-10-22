@@ -142,6 +142,8 @@ export interface TrainingEstimate {
   seconds: number;
   seconds_per_step: number;
   tokens_per_step: number;
+  /** Merged GGUF export size per type; empty for runs created before it was computed. */
+  gguf_bytes?: Partial<Record<TrainingQuant, number>>;
 }
 
 export interface TrainingExport {
