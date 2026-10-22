@@ -245,13 +245,13 @@ pub async fn suggest(
 /// Pairing settings: the signaling endpoint (empty = off).
 #[utoipa::path(get, path = "/devices/settings", tag = "devices",
     responses((status = 200, body = PairingSettings), (status = 403, body = ErrorBody)))]
-pub async fn get_settings(State(s): State<AppState>) -> Json<PairingSettings> {
+pub async fn get_pairing_settings(State(s): State<AppState>) -> Json<PairingSettings> {
     Json(pairing::hub_for(&s.tokens).settings())
 }
 
 #[utoipa::path(put, path = "/devices/settings", tag = "devices", request_body = PairingSettings,
     responses((status = 200, body = PairingSettings), (status = 400, body = ErrorBody)))]
-pub async fn put_settings(
+pub async fn put_pairing_settings(
     State(s): State<AppState>,
     Body(incoming): Body<PairingSettings>,
 ) -> ApiResult<Json<PairingSettings>> {

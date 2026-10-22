@@ -4268,7 +4268,7 @@
           "devices"
         ],
         "summary": "Pairing settings: the signaling endpoint (empty = off).",
-        "operationId": "get_settings",
+        "operationId": "get_pairing_settings",
         "responses": {
           "200": {
             "description": "",
@@ -4306,7 +4306,7 @@
         "tags": [
           "devices"
         ],
-        "operationId": "put_settings",
+        "operationId": "put_pairing_settings",
         "requestBody": {
           "content": {
             "application/json": {
