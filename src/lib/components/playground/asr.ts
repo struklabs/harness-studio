@@ -31,7 +31,7 @@ export interface EngineAsrModel {
   id: string;
   /** Definition alias: what a request's `model` names. */
   name: string;
-  family: 'mlx-audio';
+  family: 'mlx-audio' | 'python-hf';
   size_bytes: number;
   /** Translates to English too (Whisper); Parakeet only transcribes. */
   translates: boolean;
