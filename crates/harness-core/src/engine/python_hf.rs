@@ -688,6 +688,7 @@ pub fn detect(dir: &Path) -> Option<String> {
     // Spark-TTS folder speaks too, though its config is a Qwen2 one.
     // An MLX embedder or reranker (a transformers config, MLX's weights) is mlx-embed's.
     if !dir.is_dir()
+        || super::mlx::is_mlx_checkpoint(dir)
         || super::mlx::is_audio_dir(dir)
         || super::mlx::is_spark_dir(dir)
         || super::mlx::is_retrieval_dir(dir)

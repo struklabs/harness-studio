@@ -3,6 +3,7 @@
 const tr = {
   'ghdisc.repo_invalid': 'Sahip/depo biçiminde bir ad veya herkese açık bir github.com depo adresi girin.',
   'ghdisc.query_invalid': 'Bir arama ifadesi veya depo adresi girin (en çok 256 karakter).',
+  'ghdisc.repo_not_found': 'Depo bulunamadı veya herkese açık değil.',
   'ghdisc.public_only': 'Yalnızca herkese açık depolar desteklenir.',
   'ghdisc.cooldown': 'GitHub istek sınırına ulaşıldı. {seconds} saniye sonra yeniden deneyin veya bir GitHub belirteci ekleyin.',
   'ghdisc.rate_limited': 'GitHub istek sınırı veya erişim kısıtlaması. {seconds} saniye sonra yeniden deneyin.',
@@ -28,6 +29,7 @@ const tr = {
 const en: Record<keyof typeof tr, string> = {
   'ghdisc.repo_invalid': 'Enter owner/repository or a public github.com repository URL.',
   'ghdisc.query_invalid': 'Enter a search query or repository URL (up to 256 characters).',
+  'ghdisc.repo_not_found': 'Repository not found, or it is not public.',
   'ghdisc.public_only': 'Only public repositories are supported.',
   'ghdisc.cooldown': 'GitHub rate limit reached. Retry in {seconds} seconds or add a GitHub token.',
   'ghdisc.rate_limited': 'GitHub rate limit or access restriction. Retry in {seconds} seconds.',

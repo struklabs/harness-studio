@@ -982,10 +982,11 @@ pub fn quant_bits(cfg: &serde_json::Value) -> Option<u64> {
 }
 
 /// Whether a folder's weights are MLX's: its config has MLX's quantization or its card says
-/// `library_name: mlx`. Platform independent: elsewhere such a folder is simply not run.
+/// `library_name: mlx` or the `mlx` tag. Platform independent: elsewhere such a folder is simply not run.
 pub fn is_mlx_checkpoint(dir: &Path) -> bool {
     read_json(&dir.join("config.json")).is_some_and(|c| quant_bits(&c).is_some())
         || card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx"))
+        || card_tags(dir).iter().any(|tag| tag == "mlx")
 }
 
 /// `model_type` of a folder's config.
@@ -1482,6 +1483,9 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     }
     // An MLX vision-language folder reads images itself (no projector file to pair).
     model.vision = is_vlm_dir(dir);
+    if model.vision {
+        model.task = card_field(dir, "pipeline_tag");
+    }
     Some(model)
 }
 
@@ -2523,6 +2527,14 @@ pub(crate) mod tests {
             return;
         };
         assert!(ok[0].is_null(), "{ok}");
+        let video = serde_json::json!({"messages": [{"role": "user", "content": [
+            {"type": "text", "text": "What moves?"},
+            {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,AAAA"}}
+        ]}]});
+        let out = check(&video).unwrap();
+        assert!(out[0].is_null(), "{out}");
+        assert_eq!(out[1], video);
+
         // Base64 audio becomes a data: URL, so mlx-vlm never takes it for a path ("/9j..." is
         // valid base64).
         let out = check(&audio("/9j/AAAA")).unwrap();
@@ -2561,6 +2573,29 @@ pub(crate) mod tests {
             let out = check(&bad).unwrap();
             assert!(out[0].is_string(), "{bad} was accepted: {out}");
         }
+    }
+
+    #[test]
+    fn smolvlm_video_folder_runs_on_vision_engine_and_keeps_video_task() {
+        let dir = folder(&[
+            ("config.json", r#"{"model_type":"smolvlm","architectures":["SmolVLMForConditionalGeneration"],"vision_config":{},"text_config":{"model_type":"llama"}}"#),
+            ("model.safetensors", "x"),
+            ("tokenizer.json", "{}"),
+            ("README.md", "---\nlibrary_name: transformers\npipeline_tag: video-text-to-text\ntags:\n- mlx\n- smolvlm\n---\n"),
+        ]);
+        assert!(MlxEngine::VISION.runs(dir.path()));
+        assert!(!super::super::python_hf::is_model_dir(dir.path()));
+        assert!(!super::super::mistralrs::is_model_dir(dir.path()));
+        assert!(!MlxEngine::TEXT.runs(dir.path()));
+        let model = to_local_model(dir.path(), dir.path().parent().unwrap()).unwrap();
+        assert!(model.vision);
+        assert_eq!(model.task.as_deref(), Some("video-text-to-text"));
+        let record =
+            crate::model_registry::local_record(&model, &crate::library::ModelCaps::default());
+        assert!(record
+            .capabilities
+            .contains(&crate::model_registry::Capability::Video));
+        assert_eq!(record.runtime.as_deref(), Some(MLX_VLM));
     }
 
     /// The vision worker's ASGI guard around a stand-in app: only its three routes, the key,

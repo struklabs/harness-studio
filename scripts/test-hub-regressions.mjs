@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
-import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
+import { capabilitiesBlocked, engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
 import { engineLabel } from '../src/lib/engines.ts';
 import { localVariantFor } from '../src/lib/components/hub/variantFiles.ts';
 import { isPythonChat, pythonChatMemory } from '../src/lib/components/hub/pythonChat.ts';
@@ -314,4 +314,18 @@ test('a single-folder repo listed by its model file reads as downloaded in the d
   const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
   // sherpa-onnx voices are library entries for `<repo>/model.int8.onnx`, not for the folder.
   assert.match(drawer, /isRepoFolder\(\{ \.\.\.m, path: normPath\(m\.path\)\.replace\(/);
+});
+
+test('runnable video VLM capability labels override the general task refusal', () => {
+  const task = { baseline: 'no', runtime_missing: true };
+  for (const runtime of ['llama.cpp', 'mlx-vlm']) {
+    for (const status of ['runnable', 'needs_runtime']) {
+      assert.equal(capabilitiesBlocked({ status, runtime }, task), false);
+    }
+  }
+  assert.equal(capabilitiesBlocked({ status: 'unsupported', format: 'mlx' }, task), true);
+  assert.equal(capabilitiesBlocked({ status: 'unsupported_platform', runtime: 'mlx-vlm' }, task), true);
+  assert.equal(capabilitiesBlocked(null, task), true);
+  const component = readFileSync(new URL('../src/lib/components/common/ModelCapabilities.svelte', import.meta.url), 'utf8');
+  assert.match(component, /capabilitiesBlocked\(record\?\.compatibility, runtimeTask\)/);
 });

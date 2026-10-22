@@ -650,7 +650,7 @@ pub const MLX_EMBED_FAMILY: &str = crate::engine::MLX_EMBED;
 
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
-/// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
+/// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` / `video-text-to-text` for `mlx-vlm`,
 /// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS, Chatterbox Turbo,
 /// Soprano, VoxCPM2, Spark-TTS) and `automatic-speech-recognition` of one (Whisper, Parakeet:
 /// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`, `feature-extraction` /
@@ -727,7 +727,7 @@ pub fn mlx_compatibility_on(
         // A speech model without a task (Qwen3-ASR) is no chat model.
         None | Some("text-generation") if crate::engine::mlx::is_audio_repo(tags) => return None,
         None | Some("text-generation") => MLX_FAMILY,
-        Some("image-text-to-text") => MLX_VLM_FAMILY,
+        Some("image-text-to-text" | "video-text-to-text") => MLX_VLM_FAMILY,
         Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo, tags) => MLX_AUDIO_FAMILY,
         Some("automatic-speech-recognition")
             if crate::engine::mlx::is_stt_repo(repo, tags)
@@ -1946,6 +1946,48 @@ mod tests {
                 runtime: "mistral.rs".into()
             }
         );
+    }
+
+    #[test]
+    fn smolvlm_video_uses_mlx_vlm_on_apple_silicon() {
+        let tags = s(&["mlx", "smolvlm", "image-text-to-text", "video-text-to-text"]);
+        let files = s(&[
+            "config.json",
+            "model.safetensors",
+            "model.safetensors.index.json",
+            "processor_config.json",
+            "preprocessor_config.json",
+            "chat_template.json",
+            "tokenizer.json",
+        ]);
+        let format = detect_format(&tags, Some("transformers"), &files);
+        assert_eq!(format, ModelFormat::Mlx);
+        for task in ["image-text-to-text", "video-text-to-text"] {
+            let compatibility = mlx_compatibility_on(
+                "mlx-community/SmolVLM2-256M-Video-Instruct-mlx",
+                format,
+                Some(task),
+                &files,
+                &tags,
+                true,
+                false,
+            )
+            .unwrap();
+            assert_eq!(
+                compatibility,
+                Compatibility::Runnable {
+                    runtime: MLX_VLM_FAMILY.into()
+                }
+            );
+            let mut missing = compatibility.clone();
+            resolve_installed(&mut missing, &[]);
+            assert_eq!(
+                missing,
+                Compatibility::NeedsRuntime {
+                    runtime: MLX_VLM_FAMILY.into()
+                }
+            );
+        }
     }
 
     #[test]
