@@ -12,7 +12,7 @@
 //   harness-core      services, storage, engines; only depends on harness-onnx
 //   harness-gateway   OpenAI-compatible gateway; core only
 //   harness-mcp       MCP server; core only
-//   harness-api       Control API; core and mcp
+//   harness-api       Control API; core and mcp (gateway only as a dev dependency, for the pairing tests)
 //   harness-cli       `harness` command; api, core, gateway, mcp
 //   harness-studio    desktop shell (src-tauri); api, core, gateway
 //
@@ -29,7 +29,7 @@ export const RULES = {
   'harness-core': ['harness-onnx'],
   'harness-gateway': ['harness-core'],
   'harness-mcp': ['harness-core'],
-  'harness-api': ['harness-core', 'harness-mcp'],
+  'harness-api': ['harness-core', 'harness-gateway', 'harness-mcp'],
   'harness-cli': ['harness-api', 'harness-core', 'harness-gateway', 'harness-mcp'],
   'harness-studio': ['harness-api', 'harness-core', 'harness-gateway'],
 };

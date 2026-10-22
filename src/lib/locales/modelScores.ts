@@ -70,8 +70,6 @@ const tr = {
   'ms.read_failed': 'Ölçümler okunamadı. Yeniden deneyin.',
   'menus.model_scores': 'Model Puanları',
 
-  'tool_probe.unreachable': 'Sunucuya ulaşılamadı; araç çağırma sınaması çalışmadı.',
-  'tool_probe.no_server': 'Bu sunucu çalışmıyor ya da yönlendirici modunda.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -144,8 +142,6 @@ const en: Record<keyof typeof tr, string> = {
   'ms.read_failed': 'Could not read the measurements. Try again.',
   'menus.model_scores': 'Model Scores',
 
-  'tool_probe.unreachable': 'The server could not be reached; the tool probe did not run.',
-  'tool_probe.no_server': 'This server is not running or is in router mode.',
 };
 
 export default { tr, en };
