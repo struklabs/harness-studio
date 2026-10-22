@@ -28,10 +28,12 @@
   // The Playground's chat model must never be sent to it, and the gateway is not needed.
   let direct = $derived(app.isRunning && mode === 'embedding');
   let filled = $derived(texts.map((s) => s.trim()).filter(Boolean));
+  // Otherwise the gateway serves the model (a Python-engine or ONNX embedder needs no server running).
+  let reachable = $derived(direct || app.gatewayRunning);
   let matrix = $derived(result ? similarityMatrix(result.res.vectors) : []);
 
   async function run() {
-    if (busy || filled.length < 2 || !app.isRunning) return;
+    if (busy || filled.length < 2 || !reachable) return;
     controller?.abort();
     const c = new AbortController();
     controller = c;
@@ -83,7 +85,7 @@
     />
     </Field>
     <div class="flex items-center gap-3 pl-7">
-      <Button size="sm" onclick={run} disabled={busy || filled.length < 2 || !app.isRunning}>
+      <Button size="sm" onclick={run} disabled={busy || filled.length < 2 || !reachable}>
         <Play />
         {busy ? t('emb.running') : t('emb.run')}
       </Button>

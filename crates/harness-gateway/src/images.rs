@@ -1094,6 +1094,7 @@ async fn run(
 
     if kind == Kind::Edits {
         apply_reference_edit_strength(&def, &mut plan.body);
+        apply_inpaint_strength(&mut plan.body);
     }
 
     let lease = match scheduler.acquire_tokens(&def, None).await {
@@ -1282,6 +1283,18 @@ fn apply_reference_edit_strength(def: &ModelDefinition, body: &mut Value) {
         && !obj.contains_key("mask_image")
     {
         obj.insert("strength".into(), json!(1.0));
+    }
+}
+
+/// An inpainting (an edit with a mask) without an explicit `strength` draws the masked area anew:
+/// at sd.cpp's default of 0.75 an inpainting checkpoint (SD 1.5 Inpainting) leaves the area almost
+/// as it was and the prompt does not show. The mask keeps everything outside it, as in diffusers,
+/// whose inpainting default is 1.0 too.
+fn apply_inpaint_strength(body: &mut Value) {
+    if let Some(obj) = body.as_object_mut() {
+        if obj.contains_key("mask_image") && !obj.contains_key("strength") {
+            obj.insert("strength".into(), json!(1.0));
+        }
     }
 }
 
@@ -1497,6 +1510,20 @@ mod tests {
         // A plain img2img model keeps sd.cpp's own default.
         assert_eq!(strength("C:/m/sd_turbo.safetensors", json!({})), None);
         assert_eq!(strength("C:/m/flux1-dev-Q4_0.gguf", json!({})), None);
+    }
+
+    #[test]
+    fn an_inpainting_without_a_strength_draws_the_masked_area_anew() {
+        let strength = |mut body: Value| {
+            apply_inpaint_strength(&mut body);
+            body.get("strength").cloned()
+        };
+        let masked = json!({"init_image": "a", "mask_image": "b"});
+        assert_eq!(strength(masked), Some(json!(1.0)));
+        let told = json!({"init_image": "a", "mask_image": "b", "strength": 0.5});
+        assert_eq!(strength(told), Some(json!(0.5)));
+        // Without a mask it is an image-to-image edit: sd.cpp's default stays.
+        assert_eq!(strength(json!({"init_image": "a"})), None);
     }
 
     #[test]
