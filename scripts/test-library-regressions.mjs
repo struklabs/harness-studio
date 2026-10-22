@@ -213,3 +213,13 @@ test('an older speech overview cannot overwrite the models discovered after a do
     state.invoke = invoke;
   }
 });
+
+test('Embedding and Rerank panels run through the gateway without a llama.cpp server', () => {
+  // A Python-engine or ONNX model is served by the gateway; only a server that is itself the
+  // embedding/rerank server is talked to directly.
+  const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
+  const embed = read('../src/lib/components/playground/EmbeddingPanel.svelte');
+  assert.match(embed, /let reachable = \$derived\(direct \|\| app\.gatewayRunning\)/);
+  assert.doesNotMatch(embed, /!app\.isRunning\}/);
+  assert.match(read('../src/lib/components/playground/RerankPanel.svelte'), /\(direct \|\| app\.gatewayRunning\)/);
+});

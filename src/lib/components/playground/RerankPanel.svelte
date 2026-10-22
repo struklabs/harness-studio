@@ -31,7 +31,8 @@
   // The Playground's chat model must never be sent to it, and the gateway is not needed.
   let direct = $derived(app.isRunning && mode === 'rerank');
   let filled = $derived(docs.map((s) => s.trim()).filter(Boolean));
-  let canRun = $derived(!busy && app.isRunning && query.trim() !== '' && filled.length > 0);
+  // Otherwise the gateway serves the model (a Python-engine or ONNX reranker needs no server running).
+  let canRun = $derived(!busy && (direct || app.gatewayRunning) && query.trim() !== '' && filled.length > 0);
   /** Bar widths: scores are raw logits, so they are scaled between this ranking's min and max. */
   let range = $derived.by(() => {
     const scores = result?.res.items.map((i) => i.score) ?? [];
