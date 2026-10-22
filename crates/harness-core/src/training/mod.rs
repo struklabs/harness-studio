@@ -198,6 +198,9 @@ pub struct TrainingJob {
     pub checkpoint_step: Option<u32>,
     /// The worker is training (not loading the model).
     pub training: bool,
+    /// The MLX engine is being installed before the worker can start.
+    #[serde(default)]
+    pub installing_engine: bool,
     /// When this run's worker finished loading; the live rate leaves the load time out.
     #[serde(default)]
     pub training_since: Option<u64>,
@@ -303,6 +306,7 @@ fn load_all(root: &Path) -> Vec<Entry> {
         if job.status.is_active() {
             job.status = TrainingStatus::Failed;
             job.training = false;
+            job.installing_engine = false;
             job.error = Some(err("training.interrupted").into());
         }
         if let Some(export) = job.export.as_mut() {
@@ -373,9 +377,12 @@ pub(crate) fn update(id: u64, f: impl FnOnce(&mut TrainingJob)) {
         };
         let status = e.job.status;
         let export = e.job.export.as_ref().map(|x| x.status);
+        let installing = e.job.installing_engine;
         f(&mut e.job);
         e.job.updated_at = crate::capabilities::now_secs();
-        let important = e.job.status != status || e.job.export.as_ref().map(|x| x.status) != export;
+        let important = e.job.status != status
+            || e.job.export.as_ref().map(|x| x.status) != export
+            || e.job.installing_engine != installing;
         if important || e.last_save.elapsed() >= Duration::from_secs(2) {
             e.last_save = Instant::now();
             save(&e.job);
@@ -623,6 +630,7 @@ pub fn create(req: &CreateRequest) -> Result<TrainingJob, String> {
         eval_loss: None,
         checkpoint_step: None,
         training: false,
+        installing_engine: false,
         training_since: None,
         training_from_step: 0,
         error: None,

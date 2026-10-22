@@ -130,3 +130,13 @@ test('live stats leave out model loading and steps of an earlier run', () => {
   assert.equal(s.etaSeconds, 20);
   assert.equal(liveStats({ ...job, step: 8 }, 1050), null);
 });
+
+test('hardware defaults prefer CUDA, then MLX over MPS and CPU', () => {
+  assert.equal(w.preferredDevice(['cpu', 'mps', 'mlx']), 'mlx');
+  assert.equal(w.preferredDevice(['cpu', 'cuda', 'mlx']), 'cuda');
+  assert.equal(w.preferredDevice(['cpu', 'mps']), 'mps');
+  assert.equal(w.preferredDevice(['cpu']), 'cpu');
+  const wizard = readFileSync(new URL('../src/lib/components/training/Wizard.svelte', import.meta.url), 'utf8');
+  assert.match(wizard, /if \(compat && !deviceInitialized\)/);
+  assert.match(wizard, /s.device = preferredDevice\(devices\)/);
+});

@@ -166,6 +166,7 @@ export interface TrainingJob {
   eval_loss: number | null;
   checkpoint_step: number | null;
   training: boolean;
+  installing_engine?: boolean;
   /** When this run's worker finished loading (unix seconds). */
   training_since?: number | null;
   /** The step this run started training from. */

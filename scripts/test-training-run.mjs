@@ -39,3 +39,8 @@ test('compare is available only for a finished adapter or a complete checkpoint'
     assert.equal(canCompare({ status, checkpoint_step: 5 }), true);
   }
 });
+
+test('a training card shows when the engine is being installed', () => {
+  const card = readFileSync(new URL('../src/lib/components/training/JobList.svelte', import.meta.url), 'utf8');
+  assert.match(card, /job.installing_engine \? t\('training.installing_engine'\)/);
+});

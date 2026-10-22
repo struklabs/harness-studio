@@ -34547,6 +34547,10 @@
             "type": "boolean",
             "description": "The worker is training (not loading the model)."
           },
+          "installing_engine": {
+            "type": "boolean",
+            "description": "The MLX engine is being installed before the worker can start."
+          },
           "training_since": {
             "type": [
               "integer",

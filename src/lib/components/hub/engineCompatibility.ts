@@ -6,9 +6,3 @@ export function engineCompatibility(compatibility: HfCompatibility, installed: (
     ? { status: 'runnable', runtime: compatibility.runtime }
     : compatibility;
 }
-
-/** A model's engine verdict takes precedence over the general task baseline. */
-export function capabilitiesBlocked(compatibility?: HfCompatibility | null, task?: { baseline: string; runtime_missing: boolean } | null): boolean {
-  if (compatibility) return compatibility.status === 'unsupported' || compatibility.status === 'unsupported_platform';
-  return task?.baseline === 'no' || task?.runtime_missing === true;
-}
