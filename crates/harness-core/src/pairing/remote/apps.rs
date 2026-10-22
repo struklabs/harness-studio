@@ -336,7 +336,7 @@ impl Applications {
             if chats.len() >= 256
                 || chats
                     .iter()
-                    .filter(|((d, _), c)| d == device && c.done.is_none())
+                    .filter(|(_, c)| c.token_id == info.id && c.done.is_none())
                     .count()
                     >= info.policy.limits.max_concurrent.unwrap_or(1).min(4) as usize
             {

@@ -11,6 +11,9 @@ use std::time::{Duration, Instant};
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
 
 pub const RELAY_URL: &str = "wss://relay.struklabs.com:7843/v1/app";
+const ERR_SUPERSEDED: &str = "pairing.remote_superseded";
+const TICKET_GRACE_SECS: u64 = 15;
+
 pub const SUBPROTOCOL: &str = "struklabs.app.v1";
 pub type TicketFuture<'a> = Pin<Box<dyn Future<Output = Result<RelayTicket, String>> + Send + 'a>>;
 
@@ -228,6 +231,11 @@ impl DesktopSession {
                 } else {
                     "auth.invalid_token"
                 }
+            } else if matches!(
+                error.as_str(),
+                "protocol.out_of_sequence" | "protocol.version_unsupported"
+            ) {
+                error.as_str()
             } else {
                 "protocol.malformed"
             };
@@ -255,13 +263,16 @@ impl DesktopSession {
         let received = self.channel.receive(frame)?;
         let mut frames = received.reply.into_iter().collect::<Vec<_>>();
         if let Some(bytes) = received.envelope {
-            let v: Value = serde_json::from_slice(&bytes).map_err(|_| ERR_PROTOCOL)?;
-            if v["v"] != 1 || v["seq"].as_u64() != Some(self.inbound) {
-                return Err(ERR_PROTOCOL.into());
+            let v = json_strict::parse(&bytes, "protocol.malformed")?;
+            if v["v"] != 1 {
+                return Err("protocol.version_unsupported".into());
+            }
+            if v["seq"].as_u64() != Some(self.inbound) {
+                return Err("protocol.out_of_sequence".into());
             }
             self.inbound = self.inbound.checked_add(1).ok_or(ERR_PROTOCOL)?;
             let peer = self.channel.peer()?;
-            let mut reply = match field(&v, "type")? {
+            let reply = match field(&v, "type")? {
                 "pair.request" if self.mode == "pair" => {
                     let (status, body) = self.hub.remote_pair(
                         field(&v, "op")?,
@@ -344,9 +355,7 @@ impl DesktopSession {
                     Value::Null
                 }
                 "pong" if self.authenticated.is_some() => Value::Null,
-                _ if self.authenticated.is_some() => {
-                    json!({"type":"error","id":v["id"],"code":"protocol.unknown_type","message":"Unsupported request.","retryable":false})
-                }
+                _ if self.authenticated.is_some() || self.mode == "pair" => Value::Null,
                 _ => return Err(ERR_PROTOCOL.into()),
             };
             if self.pending_requests.len() > 32 {
@@ -355,13 +364,7 @@ impl DesktopSession {
             if reply.is_null() {
                 return Ok(frames);
             }
-            reply["v"] = json!(1);
-            reply["seq"] = json!(self.outbound);
-            self.outbound = self.outbound.checked_add(1).ok_or(ERR_PROTOCOL)?;
-            frames.extend(
-                self.channel
-                    .send(&serde_json::to_vec(&reply).map_err(|_| ERR_PROTOCOL)?)?,
-            );
+            frames.extend(self.encode_reply(reply)?);
         }
         Ok(frames)
     }
@@ -391,9 +394,14 @@ impl DesktopSession {
     fn encode_reply(&mut self, mut v: Value) -> Result<Vec<Vec<u8>>, String> {
         v["v"] = json!(1);
         v["seq"] = json!(self.outbound);
-        self.outbound = self.outbound.checked_add(1).ok_or(ERR_PROTOCOL)?;
-        self.channel
-            .send(&serde_json::to_vec(&v).map_err(|_| ERR_PROTOCOL)?)
+        let next = self.outbound.checked_add(1).ok_or(ERR_PROTOCOL)?;
+        let bytes = serde_json::to_vec(&v).map_err(|_| ERR_PROTOCOL)?;
+        if bytes.len() > noise::MAX_ENVELOPE {
+            return Err("protocol.too_large".into());
+        }
+        let frames = self.channel.send(&bytes)?;
+        self.outbound = next;
+        Ok(frames)
     }
 
     pub async fn poll(&mut self) -> Result<Vec<Vec<u8>>, String> {
@@ -503,10 +511,13 @@ pub async fn run(
             result=async {
                 let ticket=provider.ticket(identity.public).await?;
                 ticket.validate(&identity.public)?;
-                connect_with_apps(RELAY_URL,ticket,identity,tokens.clone(),name,apps.clone()).await
+                connect_with_apps(RELAY_URL,ticket,identity,tokens.clone(),name,apps.clone(),Some(provider)).await
             }=>result,
         };
         if let Err(error) = result {
+            if error == ERR_SUPERSEDED {
+                return Ok(());
+            }
             if error == "pairing.remote_signin_unavailable" || error == ERR_REVOKED {
                 return Err(error);
             }
@@ -532,9 +543,19 @@ pub async fn connect(
     }
     let ticket = provider.ticket(identity.public).await?;
     ticket.validate(&identity.public)?;
-    connect_url(RELAY_URL, ticket, identity, tokens, name).await
+    connect_with_apps(
+        RELAY_URL,
+        ticket,
+        identity,
+        tokens,
+        name,
+        apps::Applications::shared(),
+        Some(provider),
+    )
+    .await
 }
 
+#[cfg(test)]
 pub(super) async fn connect_url(
     url: &str,
     ticket: RelayTicket,
@@ -549,10 +570,12 @@ pub(super) async fn connect_url(
         tokens,
         name,
         apps::Applications::shared(),
+        None,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn connect_with_apps(
     url: &str,
     ticket: RelayTicket,
@@ -560,6 +583,7 @@ async fn connect_with_apps(
     tokens: TokenStore,
     name: &str,
     apps: Arc<apps::Applications>,
+    provider: Option<&dyn TicketProvider>,
 ) -> Result<(), String> {
     let mut request = url.into_client_request().map_err(|_| ERR_PROTOCOL)?;
     request
@@ -590,7 +614,13 @@ async fn connect_with_apps(
     seq += 1;
     let mut sessions: HashMap<String, (DesktopSession, bool, Instant)> = HashMap::new();
     let mut authenticated = false;
-    // Session ids are never reused on a connection: a replayed `session.incoming` is fatal.
+    let mut expires_at = ticket.expires_at;
+    let mut refreshing: Option<TicketFuture<'_>> = None;
+    let mut awaiting_refresh: Option<u64> = None;
+    let mut retry_refresh_at = 0;
+    let auth_started = Instant::now();
+    // Retain every used id, including ended sessions (stronger than the relay's 64 tombstones).
+    // Replies are sent only for live ids; late signalling/frames never name a dead session.
     let mut used_sessions: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut incoming_seq = 0u64;
     let mut last = Instant::now();
@@ -598,11 +628,32 @@ async fn connect_with_apps(
     let mut tick = tokio::time::interval(Duration::from_millis(16));
     loop {
         tokio::select! {
+            refreshed = async { refreshing.as_mut().unwrap().await }, if refreshing.is_some() => {
+                refreshing = None;
+                match refreshed {
+                    Ok(fresh) => {
+                        fresh.validate(&identity.public)?;
+                        if fresh.desktop_id != ticket.desktop_id { return Err(ERR_PROTOCOL.into()); }
+                        ws.send(Message::Text(json!({"v":1,"seq":seq,"session":zero,"type":"auth","role":"desktop","credential":fresh.credential}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?;
+                        seq += 1;
+                        awaiting_refresh = Some(fresh.expires_at);
+                    }
+                    Err(_) => retry_refresh_at = control_api::now_secs() + 1,
+                }
+            }
             _ = tick.tick() => {
+                let now = control_api::now_secs();
+                if (!authenticated && auth_started.elapsed() >= Duration::from_secs(10)) || now >= expires_at.saturating_add(TICKET_GRACE_SECS) { return Err(ERR_PROTOCOL.into()); }
+                if authenticated && refreshing.is_none() && awaiting_refresh.is_none() && now >= retry_refresh_at && now >= expires_at.saturating_sub(TICKET_GRACE_SECS) {
+                    if let Some(provider) = provider { refreshing = Some(provider.ticket(identity.public)); }
+                }
                 if last.elapsed()>Duration::from_secs(60) { return Err(ERR_PROTOCOL.into()); }
                 let mut ended=Vec::new();
                 for (sid,(session,_,activity)) in sessions.iter_mut() {
-                    if session.check_authorized().is_err() {
+                    if session.channel.handshake_expired() {
+                        session.close();
+                        ended.push(sid.clone());
+                    } else if session.check_authorized().is_err() {
                         if let Some((device,_))=&session.authenticated {apps.revoke(device);}
                         for reply in session.reject("auth.revoked") {ws.send(Message::Binary(reply.into())).await.map_err(|_|ERR_PROTOCOL)?;}
                         ended.push(sid.clone());
@@ -634,19 +685,26 @@ async fn connect_with_apps(
                 match message {
                     Message::Text(text) => {
                         if text.len()>16384 { return Err(ERR_PROTOCOL.into()); }
-                        let v:Value=serde_json::from_str(&text).map_err(|_|ERR_PROTOCOL)?;
+                        let v=json_strict::parse(text.as_bytes(),"not_json").map_err(|_|ERR_PROTOCOL)?;
                         if v["v"]!=1 || v["seq"].as_u64()!=Some(incoming_seq) { return Err(ERR_PROTOCOL.into()); }
                         incoming_seq+=1;
                         let sid=field(&v,"session")?;
                         match field(&v,"type")? {
-                            "auth.ok" if !authenticated && v["role"]=="desktop" => authenticated=true,
+                            "auth.ok" if sid==zero && v["role"]=="desktop" => {
+                                if authenticated && awaiting_refresh.is_none() { return Err(ERR_PROTOCOL.into()); }
+                                authenticated=true;
+                                if let Some(exp) = awaiting_refresh.take() { expires_at=exp; }
+                            },
                             "session.incoming" if authenticated => {
                                 if sessions.len()>=8 || used_sessions.len()>=65536 || sessions.contains_key(sid) || !used_sessions.insert(sid.to_string()) { return Err(ERR_PROTOCOL.into()); }
                                 let mut session=DesktopSession::new(identity,field(&v,"mode")?,sid,&ticket.desktop_id,name,tokens.clone())?;
                                 session.apps=apps.clone();
                                 sessions.insert(sid.into(),(session,false,Instant::now()));
                             }
-                            "transport.fallback" if authenticated => { if let Some(owned)=sessions.get_mut(sid) {owned.1=true;} }
+                            "transport.fallback" if authenticated => { if let Some(owned)=sessions.get_mut(sid) {
+                                if owned.1 { return Err(ERR_PROTOCOL.into()); }
+                                owned.1=true; owned.0.channel.start_handshake();
+                            } }
                             "peer.left" => { if let Some((mut s,_,_))=sessions.remove(sid) {s.close();} }
                             // Session ownership (APP_PROTOCOL 7.5): the desktop speaks only for the
                             // connection (all-zero id) and for sessions the relay created for it;
@@ -655,7 +713,16 @@ async fn connect_with_apps(
                                 ws.send(Message::Text(json!({"v":1,"seq":seq,"session":sid,"type":"pong","ts":v["ts"]}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?; seq+=1;
                             }
                             "ping"|"pong"|"presence"|"joined"|"ice"|"sdp.offer" => {},
-                            "error" => return Err(if matches!(v["code"].as_str(),Some("relay.revoked"|"relay.auth_failed")){ERR_REVOKED}else{ERR_PROTOCOL}.into()),
+                            "error" if sid != zero => {
+                                // The relay can send peer.left and error for the same ended session.
+                                // Never answer either message, even after the relay evicts its tombstone.
+                                if let Some((mut session,_,_))=sessions.remove(sid) { session.close(); }
+                            }
+                            "error" => return Err(match v["code"].as_str() {
+                                Some("relay.session_busy") => crate::error_key::err(ERR_SUPERSEDED).into(),
+                                Some("relay.revoked"|"relay.auth_failed") => ERR_REVOKED.into(),
+                                _ => ERR_PROTOCOL.into(),
+                            }),
                             _ => return Err(ERR_PROTOCOL.into()),
                         }
                     }
@@ -676,7 +743,12 @@ async fn connect_with_apps(
                     }
                     Message::Ping(p) => {ws.send(Message::Pong(p)).await.map_err(|_|ERR_PROTOCOL)?;}
                     Message::Pong(_) => {},
-                    Message::Close(_) => return Ok(()),
+                    Message::Close(frame) => return match frame.map(|f| u16::from(f.code)) {
+                        Some(4409) => Err(crate::error_key::err(ERR_SUPERSEDED).into()),
+                        Some(4403) => Err(ERR_REVOKED.into()),
+                        Some(4500 | 4503) => Err(ERR_PROTOCOL.into()),
+                        _ => Ok(()),
+                    },
                     _ => return Err(ERR_PROTOCOL.into()),
                 }
             }
@@ -695,6 +767,397 @@ mod ticket_tests {
             expires_at: exp,
         }
     }
+
+    fn secure_pair() -> (tempfile::TempDir, DesktopSession, snow::TransportState) {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = Identity::from_secret([7; 32]).unwrap();
+        let mut session = DesktopSession::new(
+            &identity,
+            "pair",
+            "11111111111111111111111111111111",
+            "desktop_01",
+            "Test",
+            TokenStore::at(dir.path()),
+        )
+        .unwrap();
+        let mut client = snow::Builder::new(noise::SUITE.parse().unwrap())
+            .local_private_key(&[9; 32])
+            .unwrap()
+            .prologue(b"StrukLabs-App/1|pair|11111111111111111111111111111111")
+            .unwrap()
+            .build_initiator()
+            .unwrap();
+        let mut out = [0; 65535];
+        let n = client.write_message(&[], &mut out).unwrap();
+        let first = frames::encode_frame(1, &[0x11; 16], &out[..n]).unwrap();
+        let reply = session.receive(&first).unwrap();
+        client.read_message(&reply[0][21..], &mut out).unwrap();
+        let n = client.write_message(&[], &mut out).unwrap();
+        session
+            .receive(&frames::encode_frame(1, &[0x11; 16], &out[..n]).unwrap())
+            .unwrap();
+        (dir, session, client.into_transport_mode().unwrap())
+    }
+
+    fn send_raw(
+        session: &mut DesktopSession,
+        client: &mut snow::TransportState,
+        text: &[u8],
+    ) -> Vec<Vec<u8>> {
+        let mut replies = Vec::new();
+        for record in frames::split_into_records(text) {
+            let mut out = vec![0; record.len() + 16];
+            let n = client.write_message(&record, &mut out).unwrap();
+            replies.extend(
+                session
+                    .receive(&frames::encode_frame(2, &[0x11; 16], &out[..n]).unwrap())
+                    .unwrap(),
+            );
+        }
+        replies
+    }
+
+    fn request(
+        session: &mut DesktopSession,
+        client: &mut snow::TransportState,
+        text: &[u8],
+    ) -> Value {
+        let replies = send_raw(session, client, text);
+        decode_reply(client, replies)
+    }
+
+    fn decode_reply(client: &mut snow::TransportState, frames: Vec<Vec<u8>>) -> Value {
+        let mut assembler = frames::RecordAssembler::default();
+        for frame in frames {
+            let mut plain = vec![0; 65535];
+            let n = client.read_message(&frame[21..], &mut plain).unwrap();
+            if let Some(envelope) = assembler.push(&plain[..n], noise::MAX_ENVELOPE).unwrap() {
+                return serde_json::from_slice(&envelope).unwrap();
+            }
+        }
+        panic!("missing reply")
+    }
+
+    #[test]
+    fn sequence_starts_at_zero_and_gaps_or_repeats_are_fatal() {
+        for bad in [0, 2] {
+            let (_dir, mut session, mut client) = secure_pair();
+            assert!(send_raw(
+                &mut session,
+                &mut client,
+                br#"{"v":1,"seq":0,"type":"future.type"}"#
+            )
+            .is_empty());
+            let text = json!({"v":1,"seq":bad,"type":"ping","ts":1}).to_string();
+            let error = request(&mut session, &mut client, text.as_bytes());
+            assert_eq!(error["code"], "protocol.out_of_sequence");
+            assert_eq!(error["seq"], 0);
+            assert!(session.closed);
+        }
+        let (_dir, mut session, mut client) = secure_pair();
+        let error = request(
+            &mut session,
+            &mut client,
+            br#"{"v":1,"seq":1,"type":"ping","ts":1}"#,
+        );
+        assert_eq!(error["code"], "protocol.out_of_sequence");
+        assert_eq!(error["seq"], 0);
+    }
+
+    #[test]
+    fn unknown_type_consumes_sequence_and_duplicate_members_close_the_session() {
+        let (_dir, mut session, mut client) = secure_pair();
+        assert!(send_raw(
+            &mut session,
+            &mut client,
+            br#"{"v":1,"seq":0,"type":"future.type"}"#
+        )
+        .is_empty());
+        let pong = request(
+            &mut session,
+            &mut client,
+            br#"{"v":1,"seq":1,"type":"ping","ts":1}"#,
+        );
+        assert_eq!(pong["type"], "pong");
+        assert_eq!(pong["seq"], 0);
+        let error = request(
+            &mut session,
+            &mut client,
+            br#"{"v":1,"seq":2,"type":"ping","ts":1,"nested":{"a":1,"a":2}}"#,
+        );
+        assert_eq!(error["code"], "protocol.malformed");
+        assert!(session.closed);
+    }
+
+    #[test]
+    fn oversized_reply_does_not_leave_a_sequence_gap() {
+        let (_dir, mut session, mut client) = secure_pair();
+        assert_eq!(
+            session.encode_reply(
+                json!({"type":"status","id":"large_01","payload":"x".repeat(noise::MAX_ENVELOPE)})
+            ),
+            Err("protocol.too_large".into())
+        );
+        assert_eq!(session.outbound, 0);
+        let pong = request(
+            &mut session,
+            &mut client,
+            br#"{"v":1,"seq":0,"type":"ping","ts":1}"#,
+        );
+        assert_eq!(pong["seq"], 0);
+        assert!(!session.closed);
+    }
+
+    #[allow(clippy::result_large_err)]
+    async fn accept_test(
+        socket: tokio::net::TcpStream,
+    ) -> tokio_tungstenite::WebSocketStream<tokio::net::TcpStream> {
+        tokio_tungstenite::accept_hdr_async(socket, |_: &tokio_tungstenite::tungstenite::handshake::server::Request, mut response: tokio_tungstenite::tungstenite::handshake::server::Response| {
+            response.headers_mut().insert("Sec-WebSocket-Protocol",SUBPROTOCOL.parse().unwrap());
+            Ok(response)
+        }).await.unwrap()
+    }
+
+    async fn signal(
+        ws: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+        seq: u64,
+        sid: &str,
+        mut value: Value,
+    ) {
+        value["v"] = json!(1);
+        value["seq"] = json!(seq);
+        value["session"] = json!(sid);
+        ws.send(Message::Text(value.to_string().into()))
+            .await
+            .unwrap();
+    }
+
+    async fn text_message(
+        ws: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+    ) -> Value {
+        let message = ws.next().await.unwrap().unwrap();
+        serde_json::from_str(message.to_text().unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn refresh_reauthenticates_the_live_connection_and_preserves_its_session() {
+        struct FreshTickets(std::sync::atomic::AtomicUsize);
+        impl TicketProvider for FreshTickets {
+            fn ticket(&self, key: [u8; 32]) -> TicketFuture<'_> {
+                let first = self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0;
+                Box::pin(async move {
+                    if first {
+                        return Err(ERR_PROTOCOL.into());
+                    }
+                    let now = control_api::now_secs();
+                    Ok(ticket(
+                        key,
+                        "EdDSA",
+                        &format!("refresh-{}", encode(&control_api::random_bytes::<16>()?)),
+                        now,
+                        now + 300,
+                    ))
+                })
+            }
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}/v1/app", listener.local_addr().unwrap());
+        let dir = tempfile::tempdir().unwrap();
+        let identity = Identity::from_secret([7; 32]).unwrap();
+        let now = control_api::now_secs();
+        let initial = ticket(
+            identity.public,
+            "EdDSA",
+            "initial-refresh-0001",
+            now,
+            now + 1,
+        );
+        let zero = "00000000000000000000000000000000";
+        let sid = "11111111111111111111111111111111";
+        let server = async {
+            let mut ws = accept_test(listener.accept().await.unwrap().0).await;
+            let auth = text_message(&mut ws).await;
+            assert_eq!(auth["seq"], 0);
+            assert_eq!(auth["type"], "auth");
+            signal(&mut ws, 0, zero, json!({"type":"auth.ok","role":"desktop"})).await;
+            signal(
+                &mut ws,
+                1,
+                sid,
+                json!({"type":"session.incoming","mode":"pair"}),
+            )
+            .await;
+            signal(
+                &mut ws,
+                2,
+                sid,
+                json!({"type":"transport.fallback","reason":"policy"}),
+            )
+            .await;
+            let refresh = text_message(&mut ws).await;
+            assert_eq!(refresh["type"], "auth");
+            assert_eq!(refresh["seq"], 1);
+            assert_ne!(refresh["credential"], auth["credential"]);
+            signal(&mut ws, 3, zero, json!({"type":"auth.ok","role":"desktop"})).await;
+            let mut client = snow::Builder::new(noise::SUITE.parse().unwrap())
+                .local_private_key(&[9; 32])
+                .unwrap()
+                .prologue(b"StrukLabs-App/1|pair|11111111111111111111111111111111")
+                .unwrap()
+                .build_initiator()
+                .unwrap();
+            let mut out = [0; 96];
+            let n = client.write_message(&[], &mut out).unwrap();
+            ws.send(Message::Binary(
+                frames::encode_frame(1, &[0x11; 16], &out[..n])
+                    .unwrap()
+                    .into(),
+            ))
+            .await
+            .unwrap();
+            let reply = ws.next().await.unwrap().unwrap().into_data();
+            assert_eq!(reply.len(), 117);
+            client.read_message(&reply[21..], &mut out).unwrap();
+            ws.close(None).await.unwrap();
+        };
+        let provider = FreshTickets(std::sync::atomic::AtomicUsize::new(0));
+        let connection = connect_with_apps(
+            &url,
+            initial,
+            &identity,
+            TokenStore::at(dir.path()),
+            "Test",
+            apps::Applications::shared(),
+            Some(&provider),
+        );
+        let (_, result) = tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::join!(server, connection)
+        })
+        .await
+        .unwrap();
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn ended_sessions_never_generate_replies_or_twenty_strikes() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}/v1/app", listener.local_addr().unwrap());
+        let identity = Identity::from_secret([7; 32]).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let now = control_api::now_secs();
+        let initial = ticket(
+            identity.public,
+            "EdDSA",
+            "tombstone-ticket-0001",
+            now,
+            now + 300,
+        );
+        let zero = "00000000000000000000000000000000";
+        let sid = "11111111111111111111111111111111";
+        let server = async {
+            let mut ws = accept_test(listener.accept().await.unwrap().0).await;
+            text_message(&mut ws).await;
+            signal(&mut ws, 0, zero, json!({"type":"auth.ok","role":"desktop"})).await;
+            signal(
+                &mut ws,
+                1,
+                sid,
+                json!({"type":"session.incoming","mode":"pair"}),
+            )
+            .await;
+            signal(
+                &mut ws,
+                2,
+                sid,
+                json!({"type":"peer.left","reason":"bad_frame"}),
+            )
+            .await;
+            signal(
+                &mut ws,
+                3,
+                sid,
+                json!({"type":"error","code":"relay.bad_frame","message":"closed"}),
+            )
+            .await;
+            signal(
+                &mut ws,
+                4,
+                sid,
+                json!({"type":"transport.fallback","reason":"timeout"}),
+            )
+            .await;
+            signal(&mut ws, 5, sid, json!({"type":"sdp.offer","sdp":"late"})).await;
+            signal(
+                &mut ws,
+                6,
+                sid,
+                json!({"type":"ice","candidate":"late.local"}),
+            )
+            .await;
+            ws.send(Message::Binary(
+                frames::encode_frame(1, &[0x11; 16], &[0; 32])
+                    .unwrap()
+                    .into(),
+            ))
+            .await
+            .unwrap();
+            for seq in 7..27 {
+                signal(&mut ws, seq, sid, json!({"type":"ping","ts":seq})).await;
+            }
+            signal(&mut ws, 27, zero, json!({"type":"ping","ts":42})).await;
+            let pong = text_message(&mut ws).await;
+            assert_eq!(pong["session"], zero);
+            assert_eq!(pong["seq"], 1);
+            assert_eq!(pong["ts"], 42);
+            ws.close(None).await.unwrap();
+        };
+        let connection = connect_url(&url, initial, &identity, TokenStore::at(dir.path()), "Test");
+        let (_, result) = tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::join!(server, connection)
+        })
+        .await
+        .unwrap();
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn superseded_close_stops_but_internal_errors_remain_retryable() {
+        for (code, expected) in [
+            (4409, ERR_SUPERSEDED),
+            (4500, ERR_PROTOCOL),
+            (4503, ERR_PROTOCOL),
+        ] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("ws://{}/v1/app", listener.local_addr().unwrap());
+            let identity = Identity::from_secret([7; 32]).unwrap();
+            let dir = tempfile::tempdir().unwrap();
+            let now = control_api::now_secs();
+            let initial = ticket(
+                identity.public,
+                "EdDSA",
+                "close-code-ticket001",
+                now,
+                now + 300,
+            );
+            let server = async {
+                let mut ws = accept_test(listener.accept().await.unwrap().0).await;
+                text_message(&mut ws).await;
+                ws.close(Some(tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                    code: code.into(),
+                    reason: "test".into(),
+                }))
+                .await
+                .unwrap();
+            };
+            let (_, result) = tokio::join!(
+                server,
+                connect_url(&url, initial, &identity, TokenStore::at(dir.path()), "Test")
+            );
+            assert_eq!(result, Err(expected.into()));
+        }
+    }
+
     #[test]
     fn desktop_ticket_pins_alg_lifetime_key_and_rejects_jti_replay() {
         let now = control_api::now_secs();

@@ -150,7 +150,9 @@ verification, the `kid` allowlist and `iss` matching belong to the relay (platfo
 authenticated and belongs to the relay: after every other check it claims the `jti` in the
 platform's durable store (200 on first redemption, 409 otherwise) before accepting `auth`, so a
 relay restart or a second node cannot accept a captured ticket again. Each reconnect fetches a
-fresh ticket; the desktop never holds a long-lived relay credential.
+fresh ticket. On a live connection the desktop obtains a fresh ticket 15 s before expiry and
+re-sends `auth`, preserving sessions. Transient issuance failures retry within the relay's
+15 s post-expiry grace; failure to refresh then reconnects with backoff.
 
 ### Relay Session Rules
 
@@ -168,6 +170,12 @@ listens only for sessions the relay created for it (`session.incoming`):
   channel applies it to every inbound frame.
 - **Buckets and sizes.** A transport Noise message is whole 256-byte record buckets plus the
   16-byte tag, at least 272 and at most 16,656 bytes; the frame body is at most 16,673 bytes.
+- **Connection replacement.** The relay keeps the newest desktop connection and closes the
+  older with `relay.session_busy` (4409). The older worker stops without reconnecting.
+  `relay.internal` / 4500 and shutdown / 4503 instead retry with jittered backoff.
+- **Session termination.** A session-scoped `error` or `peer.left` removes only that session.
+  Late frames and signalling for ended ids are ignored without a reply or `leave`, including
+  after the relay's 64 tombstones expire; this avoids the 20-strike unknown-session limit.
 - **One live session per device.** When a `hello` authenticates a device that already has a
   live session, the older session receives the fatal `session.superseded` and is closed; it
   does not detach the chats the new session took over.
@@ -206,8 +214,18 @@ the default provider reports that account sign-in is unavailable. Auth uses
 Relay text envelopes handle presence, incoming sessions, fallback, ping/pong and
 peer departure. Binary application frames are accepted only after
 `transport.fallback`. At most eight sessions share a desktop relay connection.
-The channel interface is independent of WSS so a future ordered, reliable
-WebRTC data channel can carry identical frames.
+The 10 s handshake deadline starts at `transport.fallback`, including a silent peer, and
+repeated fallback cannot reset it. SDP offers and ICE are ignored: the desktop has no WebRTC
+implementation, so browsers select WSS after their 8 s attempt. A future WebRTC responder
+must use the ordered, reliable negotiated channel id 0, label `struklabs-app-v1`, support
+mDNS host candidates or reflexive pairs, discard partial handshake state on fallback, close
+late-opening channels and close channels on relay `peer.left` / session `error`.
+
+Application `seq` starts at 0 independently per direction and Noise session and advances by
+exactly one, including unknown types. Gaps/repeats close with `protocol.out_of_sequence`.
+An oversized outbound envelope fails locally with `protocol.too_large` without a sequence gap.
+Duplicate JSON member names at any depth, including escaped equivalents, are rejected as
+`protocol.malformed` in application envelopes and `not_json` in relay signalling.
 
 Errors added by the alignment: `chat.limit_reached` (retryable) is returned when a token's
 concurrent chat limit is reached (it replaces the earlier `chat.busy` for that case; `chat.busy`
@@ -234,7 +252,9 @@ its scheduler lease. The relay can observe connection metadata and padded frame
 sizes, never pairing secrets, tokens, prompts or application envelopes. Account
 ticket issuance and WebRTC remain unavailable in this preview.
 
-Known gaps against APP_PROTOCOL (tracked, not silently diverging): the single-open-offer rule
-and the offer burn after 15 wrong codes in total are not applied (the legacy HTTP pairing keeps
-its own offer list and limits), and the token policy still caps a browser device at one
-concurrent chat.
+While remote access is enabled, creating an offer supersedes the previous open offer.
+Five wrong codes lock claims for 60 s; 15 wrong codes across lockout windows burn the open
+offer (it disappears from the owner's offer list). A new offer gets a fresh burn counter.
+Legacy HTTP offer behaviour remains available when remote access is disabled. Concurrent
+chats are capped at four per token; a tighter token policy (including the default one-chat
+policy) is respected, returning `chat.limit_reached` when full.
