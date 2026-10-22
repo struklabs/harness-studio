@@ -535,6 +535,7 @@ fn cors(origins: &[String]) -> CorsLayer {
         HeaderName::from_static("x-harness-queue-ms"),
         HeaderName::from_static("x-harness-load-ms"),
         HeaderName::from_static("x-harness-compat"),
+        HeaderName::from_static(video_input::FRAMES_HEADER),
         HeaderName::from_static(harness_core::control_api::API_VERSION_HEADER),
         HeaderName::from_static("x-harness-error"),
         // Speech: what the Playground's Speech panel reads.

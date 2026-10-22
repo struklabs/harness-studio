@@ -9,6 +9,9 @@ use crate::errors::GatewayError;
 
 const MAX_BYTES: usize = 32 * 1024 * 1024;
 const FRAMES: usize = 8;
+/// Response header with the number of frames a video question sent to the model (the gateway's
+/// for llama.cpp, the MLX vision worker's own for mlx-vlm).
+pub const FRAMES_HEADER: &str = "x-harness-video-frames";
 
 fn bad(message: &str) -> GatewayError {
     GatewayError::new(400, "invalid_request", message).param("messages")
@@ -154,7 +157,8 @@ async fn sample(format: &str, bytes: &[u8]) -> Result<Vec<Value>, GatewayError> 
 }
 
 /// Called only for local llama.cpp chat; Python, cloud and remote requests keep their native bodies.
-pub async fn prepare(body: Bytes) -> Result<Bytes, GatewayError> {
+/// Also returns how many frames went to the model (0 for a request without video).
+pub async fn prepare(body: Bytes) -> Result<(Bytes, usize), GatewayError> {
     let mut value: Value = serde_json::from_slice(&body).map_err(|_| bad("Invalid JSON body."))?;
     let count = value["messages"]
         .as_array()
@@ -165,14 +169,15 @@ pub async fn prepare(body: Bytes) -> Result<Bytes, GatewayError> {
         .filter(|p| p["type"] == "video_url")
         .count();
     if count == 0 {
-        return Ok(body);
+        return Ok((body, 0));
     }
     if count > 2 {
         return Err(bad("At most two videos are accepted per request."));
     }
     let Some(messages) = value["messages"].as_array_mut() else {
-        return Ok(body);
+        return Ok((body, 0));
     };
+    let mut sampled = 0;
     for message in messages {
         let Some(parts) = message["content"].as_array_mut() else {
             continue;
@@ -187,11 +192,15 @@ pub async fn prepare(body: Bytes) -> Result<Bytes, GatewayError> {
             let frames = tokio::time::timeout(Duration::from_secs(60), sample(format, &bytes))
                 .await
                 .map_err(|_| bad("Video frame sampling timed out."))??;
+            sampled += frames.iter().filter(|p| p["type"] == "image_url").count();
             converted.extend(frames);
         }
         *parts = converted;
     }
-    Ok(Bytes::from(serde_json::to_vec(&value).expect("JSON value")))
+    Ok((
+        Bytes::from(serde_json::to_vec(&value).expect("JSON value")),
+        sampled,
+    ))
 }
 
 #[cfg(test)]
@@ -201,7 +210,7 @@ mod tests {
     #[tokio::test]
     async fn text_and_image_requests_are_unchanged() {
         let body = Bytes::from_static(br#"{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,abc"}},{"type":"text","text":"hi"}]}],"stream":true}"#);
-        assert_eq!(prepare(body.clone()).await.unwrap(), body);
+        assert_eq!(prepare(body.clone()).await.unwrap(), (body, 0));
     }
 
     #[tokio::test]
@@ -259,9 +268,9 @@ mod tests {
             .unwrap();
             let bytes = std::fs::read(clip).unwrap();
             let body = json!({"model":"qwen", "stream":false, "messages":[{"role":"user", "content":[{"type":"text","text":"Describe the clip"},{"type":"video_url","video_url":{"url":format!("data:video/{format};base64,{}",STANDARD.encode(bytes))}}]}]});
-            let out: Value =
-                serde_json::from_slice(&prepare(Bytes::from(body.to_string())).await.unwrap())
-                    .unwrap();
+            let (out, sampled) = prepare(Bytes::from(body.to_string())).await.unwrap();
+            assert_eq!(sampled, FRAMES);
+            let out: Value = serde_json::from_slice(&out).unwrap();
             let parts = out["messages"][0]["content"].as_array().unwrap();
             assert_eq!(parts.len(), 1 + FRAMES * 2);
             assert_eq!(parts[1]["text"], "Video frame at 0.00s:");

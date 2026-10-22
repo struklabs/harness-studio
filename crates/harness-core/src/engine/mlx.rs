@@ -2497,6 +2497,82 @@ pub(crate) mod tests {
         Some((out.status.success(), text))
     }
 
+    /// Videos the processor cannot take natively: sampled at the model's own rate up to the frame
+    /// cap, read from a temporary file (not FFmpeg's data: protocol), kept whole (no tiling) and
+    /// counted for the response header.
+    #[test]
+    fn the_vision_worker_caps_and_counts_video_frames() {
+        let code = r#"
+import os, tempfile, base64
+model = tempfile.mkdtemp()
+assert w.video_sampling(model) == (None, None, None)
+assert w.frame_budget(model, 16) == (2.0, 16)
+with open(os.path.join(model, "preprocessor_config.json"), "w") as f:
+    json.dump({"video_sampling": {"fps": 1, "max_frames": 64, "video_size": {"longest_edge": 512}}}, f)
+assert w.video_sampling(model) == (1.0, 64, 512)
+assert w.frame_budget(model, 16) == (1.0, 16)
+assert w.frame_budget(model, 100) == (1.0, 64)
+assert w.frame_budget(model, 0) == (1.0, 2)
+
+folder = tempfile.mkdtemp()
+path = w.spill("data:video/mp4;base64," + base64.b64encode(b"clip").decode(), folder, 0)
+assert path.endswith("video0.mp4") and open(path, "rb").read() == b"clip"
+assert w.spill("data:video/x-flv;base64,AAAA", folder, 1) == "data:video/x-flv;base64,AAAA"
+assert w.spill("/etc/hosts", folder, 2) == "/etc/hosts"
+
+class Frame:
+    def __init__(self, size): self.size, self.info = size, {}
+    def copy(self): return Frame(self.size)
+    def thumbnail(self, box):
+        scale = min(box[0] / self.size[0], box[1] / self.size[1])
+        self.size = (int(self.size[0] * scale), int(self.size[1] * scale))
+big, small = Frame((1024, 768)), Frame((320, 240))
+marked = w.mark_frames([big, small], 512)
+assert [m.size for m in marked] == [(512, 384), (320, 240)] and big.size == (1024, 768)
+assert w.only_frames([[marked[0]], [marked[1]]]) and not w.only_frames([marked[0], Frame((8, 8))])
+assert not w.only_frames([])
+
+class ImageProcessor:
+    do_image_splitting = True
+    def __call__(self, imgs, **kwargs): return kwargs.get("do_image_splitting", self.do_image_splitting)
+class Processor: image_processor = ImageProcessor()
+processor = Processor()
+w.keep_frames_whole(processor)
+w.keep_frames_whole(processor)
+assert isinstance(processor.image_processor, ImageProcessor)
+assert processor.image_processor([marked]) is False
+assert processor.image_processor([Frame((8, 8))]) is True
+
+seen = {}
+class Result:
+    def __init__(self, images, n): self.images, self.used_fallback, self.selected_count = images, True, n
+class OpenAI:
+    @staticmethod
+    def resolve_video_inputs(processor, videos, *, images=None, fps=2.0, max_frames=16):
+        seen.update(fps=fps, max_frames=max_frames, videos=list(videos), exists=[os.path.exists(v) for v in videos])
+        return Result(list(images or []) + [Frame((1024, 768)), Frame((1024, 768))], 2)
+class Video:
+    @staticmethod
+    def processor_handles_video(processor): return False
+w.sample_videos(OpenAI, Video, model, 16)
+holder = {}
+w.FRAMES.set(holder)
+user = Frame((64, 64))
+out = OpenAI.resolve_video_inputs(processor, ["data:video/mp4;base64," + base64.b64encode(b"clip").decode()], images=[user])
+assert seen["fps"] == 1.0 and seen["max_frames"] == 16 and seen["exists"] == [True], seen
+assert not os.path.exists(seen["videos"][0])
+assert out.images[0] is user and not user.info
+assert all(f.info.get(w.FRAME_MARK) and max(f.size) == 512 for f in out.images[1:])
+assert holder == {"frames": 2}, holder
+print("ok")
+"#;
+        let Some((ok, text)) = vision_worker_py(code) else {
+            eprintln!("no system python, skipping");
+            return;
+        };
+        assert!(ok && text.trim().ends_with("ok"), "{text}");
+    }
+
     /// The vision worker's request check: only inline media of the right kind; input_audio is
     /// rewritten into a data: URL; no adapters or other models.
     #[test]

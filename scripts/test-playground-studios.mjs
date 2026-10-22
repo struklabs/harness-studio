@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { STUDIOS, STUDIO_STARTERS, engineOfFile, studioById, studioFromHash, studioMemoryEstimate, studioResources } = await import('../src/lib/components/playground/studios.ts');
+const { STUDIOS, STUDIO_STARTERS, engineOfFile, studioById, studioFromHash, studioMemoryEstimate, studioResources, videoQuestionEstimate } = await import('../src/lib/components/playground/studios.ts');
 const { VIDEO_FORMATS, jobPercent, videoMime, videoPreview, waitForVideo } = await import('../src/lib/components/playground/video.ts');
 
 const MB = 1024 * 1024;
@@ -29,6 +29,20 @@ test('memory estimate scales the file and grows with video frames and size', () 
   assert.ok(large > small);
   assert.ok(large <= 1000 * MB * (1.6 + 2));
   assert.equal(studioMemoryEstimate(video, 1000 * MB, { frames: 9, size: 'bad' }), studioMemoryEstimate(video, 1000 * MB, {}));
+});
+
+test('video questions count the projector and the sampled frames, within a quarter of measured peaks', () => {
+  const MiB = 1024 * 1024;
+  const video = studioById('video');
+  // SmolVLM2 256M on an 8 GB M1: Q8_0 + f16 mmproj with 8 frames peaked at 467 MiB; MLX 4-bit with 16 frames at 1.44 GB.
+  const gguf = videoQuestionEstimate(175056256 + 190033440, 'llama.cpp');
+  assert.ok(Math.abs(gguf - 467 * MiB) / (467 * MiB) < 0.25, String(gguf / MiB));
+  const mlx = videoQuestionEstimate(513 * 1000 * 1000, 'mlx-vlm');
+  assert.ok(Math.abs(mlx - 1.44e9) / 1.44e9 < 0.25, String(mlx / 1e9));
+  assert.ok(videoQuestionEstimate(1000, 'mlx-vlm', 4) < videoQuestionEstimate(1000, 'mlx-vlm'));
+  assert.equal(videoQuestionEstimate(1000, 'mlx-vlm', 99), videoQuestionEstimate(1000, 'mlx-vlm'));
+  assert.equal(studioMemoryEstimate(video, 1000, { understanding: true, runtime: 'llama.cpp' }), videoQuestionEstimate(1000, 'llama.cpp'));
+  assert.equal(studioMemoryEstimate(video, 0, { understanding: true }), null);
 });
 
 test('resources name the engine, where it runs and the estimate; remote and cloud models have none', () => {

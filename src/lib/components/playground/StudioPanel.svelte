@@ -62,7 +62,7 @@
     }).catch(() => {});
     return () => { live = false; };
   });
-  let resources = $derived(studioResources(spec, model, file, { frames, size, companionBytes, runtime }));
+  let resources = $derived(studioResources(spec, model, file, { frames, size, companionBytes, runtime, understanding: pipelineTask === 'video-text-to-text' }));
   let chatStudio = $derived(spec.mode === 'chat');
 
   function openChat() {
