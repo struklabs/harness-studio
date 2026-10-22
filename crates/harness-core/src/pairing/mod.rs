@@ -294,6 +294,7 @@ pub struct OfferInfo {
 struct Offer {
     info: OfferInfo,
     digits: String,
+    remote_failures: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -421,6 +422,19 @@ struct HubState {
     claims: Vec<Claim>,
     failures: Vec<u64>,
     seen: HashMap<String, u64>,
+}
+
+impl HubState {
+    fn remote_code_failure(&mut self, now: u64) -> bool {
+        let before = self.offers.len();
+        self.failures.push(now);
+        for offer in &mut self.offers {
+            offer.remote_failures += 1;
+        }
+        self.offers
+            .retain(|offer| offer.remote_failures < remote::MAX_OFFER_FAILURES);
+        before != self.offers.len()
+    }
 }
 
 /// The pairing state of one config directory.
@@ -632,12 +646,16 @@ impl Hub {
         {
             let mut st = self.state.lock().unwrap();
             self.expire(&mut st, now);
+            if self.remote_settings().enabled {
+                st.offers.clear();
+            }
             if st.offers.len() >= MAX_OFFERS {
                 return Err(ERR_TOO_MANY.to_string());
             }
             st.offers.push(Offer {
                 info: info.clone(),
                 digits,
+                remote_failures: 0,
             });
         }
         self.audit(
@@ -704,8 +722,16 @@ impl Hub {
             }
         }
         let Some(i) = hit else {
-            st.failures.push(now);
+            let burned = if self.remote_settings().enabled {
+                st.remote_code_failure(now)
+            } else {
+                st.failures.push(now);
+                false
+            };
             drop(st);
+            if burned {
+                self.audit("offer_burned", None, None, Some("wrong_code_limit"));
+            }
             self.audit("claim_failed", None, Some(&name), Some("invalid_code"));
             return Err(ERR_INVALID_CODE.to_string());
         };

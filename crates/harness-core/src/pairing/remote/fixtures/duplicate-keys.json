@@ -1,0 +1,75 @@
+{
+  "source": "packages/app-protocol/tests/review-deferred.test.ts: duplicate JSON keys",
+  "cases": [
+    {
+      "name": "top level",
+      "text": "{\"v\":1,\"type\":\"ping\",\"seq\":0,\"ts\":1,\"ts\":2}",
+      "accept": false
+    },
+    {
+      "name": "top level, type",
+      "text": "{\"v\":1,\"type\":\"ping\",\"type\":\"pong\",\"seq\":0,\"ts\":1}",
+      "accept": false
+    },
+    {
+      "name": "nested object",
+      "text": "{\"v\":1,\"type\":\"hello\",\"from\":\"client\",\"seq\":0,\"token\":\"t\",\"client\":{\"name\":\"a\",\"name\":\"b\",\"version\":\"1\"},\"caps\":[]}",
+      "accept": false
+    },
+    {
+      "name": "inside an array element",
+      "text": "{\"v\":1,\"type\":\"models.list\",\"models\":[{\"id\":\"a\",\"id\":\"b\"}],\"seq\":0}",
+      "accept": false
+    },
+    {
+      "name": "escaped spelling of the same name",
+      "text": "{\"v\":1,\"type\":\"ping\",\"seq\":0,\"ts\":1,\"\\u0074s\":2}",
+      "accept": false
+    },
+    {
+      "name": "not adjacent",
+      "text": "{\"v\":1,\"ts\":1,\"type\":\"ping\",\"seq\":0,\"ts\":2}",
+      "accept": false
+    },
+    {
+      "name": "__proto__ twice",
+      "text": "{\"v\":1,\"type\":\"ping\",\"seq\":0,\"ts\":1,\"__proto__\":1,\"__proto__\":2}",
+      "accept": false
+    },
+    {
+      "name": "look-alike 1",
+      "text": "{\"a\":{\"a\":1},\"b\":[{\"a\":1},{\"a\":2}],\"c\":\"{\\\"a\\\":1,\\\"a\\\":2}\"}",
+      "accept": true
+    },
+    {
+      "name": "look-alike 2",
+      "text": "{\"a\":\"x\\\"y\",\"b\":1}",
+      "accept": true
+    },
+    {
+      "name": "look-alike 3",
+      "text": "{\"a\":1,\"b\":{\"a\":1,\"c\":[1,2,{\"d\":1}]},\"d\":2}",
+      "accept": true
+    },
+    {
+      "name": "look-alike 4",
+      "text": "[{\"a\":1},{\"a\":1}]",
+      "accept": true
+    },
+    {
+      "name": "ping",
+      "text": "{\"v\":1,\"type\":\"ping\",\"seq\":0,\"ts\":1}",
+      "accept": true
+    },
+    {
+      "name": "signalling ping",
+      "text": "{\"v\":1,\"type\":\"ping\",\"session\":\"abababababababababababababababab\",\"seq\":0,\"ts\":1}",
+      "accept": true
+    },
+    {
+      "name": "signalling duplicate",
+      "text": "{\"v\":1,\"type\":\"ping\",\"session\":\"abababababababababababababababab\",\"seq\":0,\"ts\":1,\"ts\":2}",
+      "accept": false
+    }
+  ]
+}

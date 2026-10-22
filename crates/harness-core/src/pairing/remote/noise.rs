@@ -120,11 +120,16 @@ pub struct Received {
 }
 
 impl Channel {
+    /// The WSS deadline starts when fallback selects the carrier, even with no first frame.
+    pub fn start_handshake(&mut self) {
+        self.started.get_or_insert_with(Instant::now);
+    }
+
     pub fn handshake_expired(&self) -> bool {
         matches!(self.state, State::Handshake(_))
             && self
                 .started
-                .is_some_and(|t| t.elapsed() > Duration::from_secs(10))
+                .is_some_and(|t| t.elapsed() >= Duration::from_secs(10))
     }
     pub fn peer(&self) -> Result<[u8; 32], String> {
         match &self.state {
@@ -178,7 +183,8 @@ impl Channel {
         .map_err(|_| ERR_PROTOCOL)?;
         match &mut self.state {
             State::Handshake(hs) => {
-                if self.started.get_or_insert_with(Instant::now).elapsed() > Duration::from_secs(10)
+                if self.started.get_or_insert_with(Instant::now).elapsed()
+                    >= Duration::from_secs(10)
                     || frame[4] != 1
                     || payload.len() != if self.step == 0 { 32 } else { 64 }
                 {
@@ -269,5 +275,22 @@ impl Channel {
     pub fn close(&mut self) {
         self.state = State::Closed;
         self.assembler.clear();
+    }
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    use super::*;
+    #[test]
+    fn fallback_deadline_covers_silent_peers_and_cannot_be_reset() {
+        let identity = Identity::from_secret([7; 32]).unwrap();
+        let mut channel = identity
+            .responder("pair", "11111111111111111111111111111111")
+            .unwrap();
+        assert!(!channel.handshake_expired());
+        channel.start_handshake();
+        channel.started = Some(Instant::now() - Duration::from_secs(11));
+        channel.start_handshake();
+        assert!(channel.handshake_expired());
     }
 }

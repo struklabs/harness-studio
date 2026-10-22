@@ -1263,3 +1263,90 @@ fn desktop_ticket_answer_cannot_redirect_the_relay_and_request_matches_the_platf
         json!({"device_id":"desktop_01","noise_static_pub":encode(&key)})
     );
 }
+
+#[test]
+fn strict_json_matches_every_web_duplicate_key_case() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/duplicate-keys.json")).unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        for code in ["protocol.malformed", "not_json"] {
+            let result = json_strict::parse(case["text"].as_str().unwrap().as_bytes(), code);
+            assert_eq!(
+                result.is_ok(),
+                case["accept"].as_bool().unwrap(),
+                "{}: {code}",
+                case["name"]
+            );
+            if let Err(error) = result {
+                assert_eq!(error, code);
+            }
+        }
+    }
+}
+
+#[test]
+fn remote_offer_supersedes_and_burns_after_fifteen_wrong_codes_across_lockouts() {
+    let (_dir, tokens, hub, d, c) = setup();
+    crate::store::JsonStore::new(hub.dir.join("remote_access_v1.json"))
+        .save(&RemoteAccessSettingsV1 { enabled: true })
+        .unwrap();
+    let old = offer(&hub);
+    let current = offer(&hub);
+    assert_eq!(hub.offers().len(), 1);
+    assert_ne!(old, current);
+    let wrong = json!({"code":"malformed", "name":"Browser", "commit":encode(&[1;32])});
+    // A superseded code is wrong too, with no indication that it ever existed.
+    let mut superseded = wrong.clone();
+    superseded["code"] = json!(old);
+    assert_eq!(
+        pair_call(&hub, &tokens, &d, &c, "claim", &superseded).0,
+        403
+    );
+    for attempt in 1..15 {
+        if attempt % 5 == 0 {
+            let mut correct = wrong.clone();
+            correct["code"] = json!(current);
+            assert_eq!(pair_call(&hub, &tokens, &d, &c, "claim", &correct).0, 429);
+            hub.advance_clock(61);
+        }
+        if attempt % 2 == 0 {
+            assert_eq!(
+                hub.claim("malformed", "Browser", "web", "noncenoncenonce01")
+                    .unwrap_err(),
+                ERR_INVALID_CODE
+            );
+        } else {
+            assert_eq!(pair_call(&hub, &tokens, &d, &c, "claim", &wrong).0, 403);
+        }
+        assert_eq!(hub.offers().len(), usize::from(attempt < 14));
+    }
+    hub.advance_clock(61);
+    let mut burned = wrong;
+    burned["code"] = json!(current);
+    assert_eq!(pair_call(&hub, &tokens, &d, &c, "claim", &burned).0, 403);
+    let fresh = offer(&hub);
+    burned["code"] = json!(fresh);
+    assert_eq!(pair_call(&hub, &tokens, &d, &c, "claim", &burned).0, 201);
+}
+
+#[test]
+fn four_chat_ceiling_counts_all_runs_for_the_same_token() {
+    let dir = tempfile::tempdir().unwrap();
+    let tokens = TokenStore::at(dir.path());
+    let mut info = tokens.create("Chat", &[Scope::Inference]).unwrap().info;
+    info.policy.limits.max_concurrent = Some(8);
+    let apps = apps::Applications::shared();
+    let request = json!({"type":"chat.start","id":"chat_next","model":"m","messages":[{"role":"user","content":"hi"}]});
+    for i in 0..4 {
+        apps.insert_test_chat(
+            &format!("device_{i}"),
+            &format!("chat_{i:04}"),
+            &info.id,
+            &request,
+        );
+    }
+    assert_eq!(
+        apps.start("device_5", info, request).unwrap_err()["code"],
+        "chat.limit_reached"
+    );
+}

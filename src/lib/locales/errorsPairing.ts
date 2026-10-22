@@ -1,6 +1,7 @@
 // Backend error keys of device pairing (harness_core::pairing, control API /pairing, /devices).
 // Texts are single quoted literals (the CLI compiles the English half in).
 const tr = {
+  'pairing.remote_superseded': 'Bu uzak bağlantının yerini daha yeni bir bağlantı aldı.',
   'pairing.remote_protocol': 'Güvenli uzak bağlantının protokol denetimi başarısız oldu.',
   'pairing.remote_keychain': 'Güvenli uzak bağlantının anahtarı işletim sistemi kasasından okunamadı veya kaydedilemedi.',
   'pairing.remote_revoked': 'Bu cihazın uzak erişim izni geçersiz veya iptal edilmiş.',
@@ -28,6 +29,7 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'pairing.remote_superseded': 'A newer connection replaced this remote connection.',
   'pairing.remote_protocol': 'The secure remote connection failed its protocol checks.',
   'pairing.remote_keychain': 'The secure remote key could not be read from or saved to the OS secret store.',
   'pairing.remote_revoked': 'This device has invalid or revoked remote access.',

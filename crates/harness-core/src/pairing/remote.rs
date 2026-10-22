@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 
 pub mod apps;
 pub mod frames;
+mod json_strict;
 pub mod noise;
 pub mod relay;
 pub mod runtime;
@@ -28,6 +29,7 @@ pub const REMOTE_CLAIM_TTL_SECS: u64 = 180;
 pub const TOKEN_REDELIVERY_SECS: u64 = 60;
 /// An approved claim waits this long for its first poll before the token copy is wiped.
 pub const TOKEN_DELIVERY_WINDOW_SECS: u64 = 300;
+pub(super) const MAX_OFFER_FAILURES: usize = 15;
 pub const POLL_INTERVAL_MS: u64 = 2000;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
@@ -172,9 +174,6 @@ impl Hub {
         }
         let name = name.to_string();
         let code = field(body, "code")?;
-        if code.len() != 8 || !code.bytes().all(|b| b.is_ascii_digit()) {
-            return Err(ERR_INVALID_CODE.into());
-        }
         // The desktop nonce is generated only after the commitment was decoded and is sent back
         // in this answer.
         let nd = control_api::random_bytes::<32>()?;
@@ -193,7 +192,11 @@ impl Hub {
             }
         }
         let Some(i) = hit else {
-            st.failures.push(now);
+            let burned = st.remote_code_failure(now);
+            drop(st);
+            if burned {
+                self.audit("offer_burned", None, None, Some("wrong_code_limit"));
+            }
             return Err(ERR_INVALID_CODE.into());
         };
         if st.claims.len() >= MAX_CLAIMS {
