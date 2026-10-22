@@ -2,7 +2,9 @@
 job directories.
 
 It speaks the same protocol as training_worker.py: `HS_READY` once the model is loaded,
-`HS_METRIC {json}` per optimizer step, a `cancel` file asks for a checkpoint and a stop. A
+`HS_METRIC {json}` per optimizer step (with the unified memory MLX holds, and greedy answers to
+the job's checkpoint prompts at each checkpoint), a `cancel` file asks for a checkpoint and a
+stop. `--compare` answers prompts with the base and then with the adapter (`HS_COMPARE`). A
 checkpoint holds the adapter, the optimizer state and the data position; `trainer_state.json`
 is written last, so an interrupted checkpoint is never resumed from. The adapter is mlx-lm's
 format (`adapters.safetensors` + `adapter_config.json`), which `mlx_lm.load(adapter_path=...)`
@@ -119,6 +121,35 @@ def complete_checkpoints(root):
     return sorted(out)
 
 
+def memory_metric():
+    """Unified memory MLX holds now, and the share of RAM the GPU may use (Metal's recommended
+    working set), as the PyTorch worker reports CUDA / MPS memory."""
+    import mlx.core as mx
+    metric = {"vram_bytes": int(mx.get_active_memory())}
+    total = mx.device_info().get("max_recommended_working_set_size")
+    if total:
+        metric["vram_total_bytes"] = int(total)
+    return metric
+
+
+def generate_samples(model, tokenizer, prompts, max_length):
+    """Greedy, bounded answers (the PyTorch worker's limits): up to 128 new tokens, the prompt
+    cut to the job's sequence length."""
+    from mlx_lm.generate import generate
+    was_training = model.training
+    model.eval()
+    try:
+        samples = []
+        for prompt in prompts:
+            tokens = tokenizer.apply_chat_template([{"role": "user", "content": prompt}],
+                                                   add_generation_prompt=True)
+            text = generate(model, tokenizer, tokens[-max_length:], max_tokens=128, verbose=False)
+            samples.append({"prompt": prompt, "text": text})
+        return samples
+    finally:
+        model.train(was_training)
+
+
 def save_checkpoint(root, step, micro, model, optimizer, config):
     import mlx.core as mx
     from mlx.utils import tree_flatten
@@ -205,6 +236,7 @@ def train(root, cfg, resume):
         model.train()
         return loss
 
+    prompts = cfg.get("sample_prompts") or []
     print("HS_READY", flush=True)
     model.train()
     step, micro, grad, losses = start, micro_done, None, []
@@ -219,7 +251,7 @@ def train(root, cfg, resume):
             losses.append(loss.item())
             micro += 1
         step += 1
-        metric = {"step": step, "loss": float(np.mean(losses))}
+        metric = {"step": step, "loss": float(np.mean(losses)), **memory_metric()}
         losses = []
         if step % cfg["eval_steps"] == 0 or step == cfg["steps"]:
             value = eval_loss()
@@ -229,6 +261,10 @@ def train(root, cfg, resume):
         print("HS_METRIC " + json.dumps(metric, allow_nan=False), flush=True)
         if step % cfg["checkpoint_steps"] == 0 and step < cfg["steps"]:
             save_checkpoint(root, step, micro, model, optimizer, config)
+        if prompts and (step % cfg["checkpoint_steps"] == 0 or step == cfg["steps"]) \
+                and not (root / "cancel").exists():
+            samples = generate_samples(model, tokenizer, prompts, max_seq)
+            print("HS_METRIC " + json.dumps({"step": step, "samples": samples}, allow_nan=False), flush=True)
 
     out = root / "adapter.partial"
     shutil.rmtree(out, ignore_errors=True)
@@ -278,16 +314,36 @@ def export(root, cfg, output, dequantize):
     export_tokenizer(cfg["model"], output)
 
 
+def compare(root, cfg):
+    """The same prompts answered by the base model, then with the run's adapter (`root/adapter`,
+    a snapshot the service copied). One model at a time, so an 8 GB Mac holds a single copy."""
+    import mlx.core as mx
+    from mlx_lm.utils import load
+    prompts = json.loads((root / "prompts.json").read_text(encoding="utf-8"))
+    model, tokenizer = load(cfg["model"])
+    base = generate_samples(model, tokenizer, prompts, cfg["sequence_length"])
+    del model
+    mx.clear_cache()
+    model, tokenizer = load(cfg["model"], adapter_path=str(root / "adapter"))
+    trained = generate_samples(model, tokenizer, prompts, cfg["sequence_length"])
+    rows = [{"prompt": a["prompt"], "base": a["text"], "trained": b["text"]}
+            for a, b in zip(base, trained)]
+    print("HS_COMPARE " + json.dumps(rows, allow_nan=False), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--job", required=True)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--export")
     parser.add_argument("--dequantize", action="store_true")
+    parser.add_argument("--compare", action="store_true")
     args = parser.parse_args()
     root = Path(args.job)
     cfg = json.loads((root / "job.json").read_text(encoding="utf-8"))["config"]
-    if args.export:
+    if args.compare:
+        compare(root, cfg)
+    elif args.export:
         export(root, cfg, args.export, args.dequantize)
     else:
         train(root, cfg, args.resume)

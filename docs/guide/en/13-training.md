@@ -53,7 +53,7 @@ A switch at the top selects **Simple** or **Advanced** mode (remembered). Simple
 - **Pause** saves a checkpoint at the next training step and releases the worker slot. Wait for **Paused**, then use **Resume** to continue. If saving fails or times out, the run may only have an older complete checkpoint.
 - **Resume** continues a failed or cancelled job from its last complete checkpoint, including optimizer state. A job interrupted by closing the app shows as failed and can be resumed.
 - Loss and eval loss are stored for every step; the chart reads them. Everything a job owns (dataset snapshot, metrics, log, checkpoints, adapter) is in `<data folder>/training/<id>/`. **Delete** removes it; an exported model stays.
-- Select a run to see its live loss/evaluation curves, device memory and checkpoint generations. CUDA reports used/total device VRAM; MPS reports memory allocated by the worker. CPU runs show that device memory measurement is unavailable. Expand a checkpoint to read each prompt and its answer.
+- Select a run to see its live loss/evaluation curves, device memory and checkpoint generations. CUDA reports used/total device VRAM; MPS reports memory allocated by the worker; MLX reports the unified memory it holds against the GPU's recommended working set. CPU runs show that device memory measurement is unavailable. Expand a checkpoint to read each prompt and its answer.
 
 ## Export to Library
 
@@ -69,7 +69,7 @@ Choose **Export LoRA adapter only** to copy `adapter_model.safetensors` (MLX: `a
 
 ## Before and after
 
-Use **Before and After** on a finished run, or a stopped run with a complete checkpoint, to open its comparison in **Playground**. Enter one prompt per line and press **Compare**. The run's checkpoint prompts are filled in when available. Each prompt gets a base answer and a fine-tuned answer side by side, using the same chat template, context limit, greedy decoding and a 128-token output limit. Comparison uses the run's saved adapter, including before export. Both passes run sequentially on CPU, which can take time for larger models; the training slot is held during comparison. Answers remain in the panel until it closes or another comparison starts.
+Use **Before and After** on a finished run, or a stopped run with a complete checkpoint, to open its comparison in **Playground**. Enter one prompt per line and press **Compare**. The run's checkpoint prompts are filled in when available. Each prompt gets a base answer and a fine-tuned answer side by side, using the same chat template, context limit, greedy decoding and a 128-token output limit. Comparison uses the run's saved adapter, including before export. Both passes run one after the other, on the CPU for PyTorch runs and on the Apple Silicon GPU for MLX runs (one model in memory at a time), which can take time for larger models; the training slot is held during comparison. Answers remain in the panel until it closes or another comparison starts.
 
 ## Training CLI
 

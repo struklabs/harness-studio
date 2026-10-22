@@ -21267,6 +21267,18 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "gguf_bytes": {
+            "type": "object",
+            "description": "Size of a merged GGUF export per type (`Q4_K_M`...), with the converter's estimate: the\nembedding and the matrices a k-quant cannot hold are stored wider. Empty for runs\ncreated before it was computed.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },

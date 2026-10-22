@@ -37,11 +37,8 @@ pub async fn compare(
         if job.status.is_active() || job.status == TrainingStatus::Draft {
             return Err(err("training.job_active").with("id", id).into());
         }
-        if job.config.device == super::Device::Mlx {
-            return Err(err("training.compare_mlx").into());
-        }
         let dir = super::job_dir(id);
-        let source = if dir.join("adapter/adapter_model.safetensors").is_file() {
+        let source = if run::has_adapter(&dir.join("adapter")) {
             dir.join("adapter")
         } else {
             dir.join(format!(
@@ -52,7 +49,12 @@ pub async fn compare(
             ))
         };
         std::fs::create_dir(snapshot.path().join("adapter")).map_err(|e| e.to_string())?;
-        for name in ["adapter_model.safetensors", "adapter_config.json"] {
+        // PEFT's weights file (PyTorch) or mlx-lm's (MLX), with its config.
+        let weights = run::ADAPTER_FILES
+            .into_iter()
+            .find(|f| source.join(f).is_file())
+            .unwrap_or(run::ADAPTER_FILES[0]);
+        for name in [weights, "adapter_config.json"] {
             std::fs::copy(
                 source.join(name),
                 snapshot.path().join("adapter").join(name),

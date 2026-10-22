@@ -360,10 +360,27 @@ fn fallback_parameters_of(info: &Value, parameters: u64, embedding_parameters: u
     let (Some(hidden), Some(layers)) = (number("hidden_size"), number("num_hidden_layers")) else {
         return 0;
     };
+    fallback_parameters(
+        hidden,
+        layers,
+        number("intermediate_size"),
+        parameters,
+        embedding_parameters,
+    )
+}
+
+/// [`fallback_parameters_of`] from the numbers of a config (also the training export's estimate).
+pub(crate) fn fallback_parameters(
+    hidden: u64,
+    layers: u64,
+    intermediate: Option<u64>,
+    parameters: u64,
+    embedding_parameters: u64,
+) -> u64 {
     let body = parameters.saturating_sub(embedding_parameters);
-    let down = number("intermediate_size").map_or(0, |i| layers * i * hidden);
-    let down_falls_back = number("intermediate_size").is_some_and(|i| i % QK_K != 0);
-    let n = match (hidden % QK_K != 0, down_falls_back) {
+    let down = intermediate.map_or(0, |i| layers * i * hidden);
+    let down_falls_back = intermediate.is_some_and(|i| !i.is_multiple_of(QK_K));
+    let n = match (!hidden.is_multiple_of(QK_K), down_falls_back) {
         (true, true) => body,
         (true, false) => body.saturating_sub(down),
         (false, true) => down,
