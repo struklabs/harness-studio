@@ -1,6 +1,6 @@
 [package]
 name = "harness-onnx"
-version = "0.1.2"
+version = "0.2.0"
 description = "Harness ONNX engine: a small OpenAI-compatible embeddings / rerank server for Hugging Face ONNX encoder models (ONNX Runtime + tokenizers, no Python)"
 authors = ["struklabs and Harness Studio contributors"]
 repository = "https://github.com/struklabs/harness-studio"

@@ -2321,7 +2321,7 @@ dependencies = [
 
 [[package]]
 name = "harness-api"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "axum",
@@ -2349,7 +2349,7 @@ dependencies = [
 
 [[package]]
 name = "harness-cli"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2371,7 +2371,7 @@ dependencies = [
 
 [[package]]
 name = "harness-core"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -2424,7 +2424,7 @@ dependencies = [
 
 [[package]]
 name = "harness-gateway"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "harness-mcp"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "harness-core",
  "serde",
@@ -2458,7 +2458,7 @@ dependencies = [
 
 [[package]]
 name = "harness-onnx"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2481,7 +2481,7 @@ dependencies = [
 
 [[package]]
 name = "harness-studio"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "gio",

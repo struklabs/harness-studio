@@ -9,7 +9,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "0.1.2",
+    "version": "0.2.0",
     "x-harness-api-version": 1
   },
   "paths": {
@@ -27701,6 +27701,13 @@
               "string",
               "null"
             ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Model identity for taskflow runs, when one has been selected."
           }
         }
       },

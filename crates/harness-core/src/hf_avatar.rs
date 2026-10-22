@@ -23,7 +23,7 @@ const HIT_TTL_SECS: u64 = 7 * 24 * 3600;
 const MISS_TTL_SECS: u64 = 24 * 3600;
 const MAX_AUTHORS_PER_CALL: usize = 60;
 const CONCURRENCY: usize = 6;
-const USER_AGENT: &str = "HarnessStudio/0.1.2";
+const USER_AGENT: &str = "HarnessStudio/0.2.0";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AvatarEntry {

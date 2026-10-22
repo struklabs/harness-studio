@@ -213,7 +213,10 @@ pub fn hide_window_tokio(cmd: &mut tokio::process::Command) {
 /// [`hide_window`] for a `command_group` builder (std or tokio). The group spawn replaces the
 /// inner command's creation flags with its own, so the flag must be set here too.
 pub fn hide_window_group<T>(group: &mut command_group::builder::CommandGroupBuilder<'_, T>) {
+    #[cfg(windows)]
     group.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(not(windows))]
+    let _ = group;
 }
 
 /// A command for short helper invocations (`--help`, `--version`, tool probes):

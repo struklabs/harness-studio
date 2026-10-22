@@ -575,7 +575,7 @@ pub fn unsupported_quant(repo_id: &str, method: &str, base_model: Option<&str>) 
 
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
-        .user_agent("HarnessStudio/0.1.2")
+        .user_agent("HarnessStudio/0.2.0")
         .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| crate::http_error::transport(&e, "HTTP client"))

@@ -104,7 +104,7 @@ await step('contract', async () => {
 });
 
 await step('runtime', () => {
-  harness(['--json', 'runtime', 'managed', 'install', '--backend', 'cpu'], { timeoutMs: 600_000 });
+  harness(['--json', '--yes', 'runtime', 'managed', 'install', '--backend', 'cpu'], { timeoutMs: 600_000 });
   const status = JSON.parse(harness(['--json', 'runtime', 'managed', 'status']));
   return `llama.cpp ${status.installed?.version ?? status.version ?? 'installed'}`;
 }, { retry: true });

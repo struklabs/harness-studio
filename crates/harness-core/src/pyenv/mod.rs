@@ -256,7 +256,7 @@ pub(crate) fn write_json(file: &Path, value: &impl Serialize) -> Result<(), Stri
 
 pub(crate) fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
-        .user_agent("HarnessStudio/0.1.2")
+        .user_agent("HarnessStudio/0.2.0")
         .build()
         .map_err(|e| crate::http_error::transport(&e, "HTTP client"))
 }
