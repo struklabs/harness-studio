@@ -289,6 +289,9 @@ pub struct StoredToken {
     pub hash: String,
     /// Unix seconds.
     pub created_at: u64,
+    /// Remote app tokens require possession of this Noise static key. Legacy tokens omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub noise_static_pub: Option<[u8; 32]>,
     /// Gateway policy (schema v2; a v1 token has none = no restriction).
     #[serde(flatten, default)]
     pub policy: TokenPolicy,
@@ -465,6 +468,16 @@ impl TokenStore {
         scopes: &[Scope],
         policy: &TokenPolicy,
     ) -> Result<CreatedToken, String> {
+        self.create_bound(name, scopes, policy, None)
+    }
+
+    pub(crate) fn create_bound(
+        &self,
+        name: &str,
+        scopes: &[Scope],
+        policy: &TokenPolicy,
+        noise_static_pub: Option<[u8; 32]>,
+    ) -> Result<CreatedToken, String> {
         let name = validate_name(name)?;
         let scopes = validate_scopes(scopes)?;
         let policy = policy.validate()?;
@@ -478,6 +491,7 @@ impl TokenStore {
             hash: hash_secret(&salt, &secret),
             salt,
             created_at: now_secs(),
+            noise_static_pub,
             policy,
         };
         let info = TokenInfo::from(&stored);
@@ -544,15 +558,42 @@ impl TokenStore {
                 } else {
                     Ok(())
                 }
-            })
+            })?;
+        crate::pairing::remote::apps::revoke_token(id);
+        Ok(())
     }
 
     /// The token's info and scopes when `presented` is a valid named token.
     pub fn verify(&self, presented: &str) -> Option<(TokenInfo, Vec<Scope>)> {
+        self.verify_bound(presented, None)
+    }
+
+    /// Only a completed Noise handshake may supply `peer`. Ordinary bearer paths cannot
+    /// use a remote token, even if its value leaked independently of the device key.
+    pub fn verify_noise(
+        &self,
+        presented: &str,
+        peer: &[u8; 32],
+    ) -> Option<(TokenInfo, Vec<Scope>)> {
+        self.verify_bound(presented, Some(peer))
+    }
+
+    fn verify_bound(
+        &self,
+        presented: &str,
+        peer: Option<&[u8; 32]>,
+    ) -> Option<(TokenInfo, Vec<Scope>)> {
         let rest = presented.strip_prefix("hs_")?;
         let (id, secret) = rest.split_once('_')?;
         let tokens = self.load().ok()?;
         let token = tokens.iter().find(|t| t.id == id)?;
+        if let Some(key) = &token.noise_static_pub {
+            if !peer.is_some_and(|peer| ct_eq(peer, key)) {
+                return None;
+            }
+        } else if peer.is_some() {
+            return None;
+        }
         let computed = hash_secret(&token.salt, secret);
         ct_eq(computed.as_bytes(), token.hash.as_bytes())
             .then(|| (TokenInfo::from(token), token.scopes.clone()))

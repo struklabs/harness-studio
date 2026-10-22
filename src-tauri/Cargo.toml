@@ -16,6 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
 qa-cdp = []
+remote-access = ["harness-core/remote-access"]
 # OTLP/gRPC export in the GUI (tonic, rustls; about +1.5 MB). Off by default, where Settings >
 # OpenTelemetry offers only HTTP/protobuf.
 otel-grpc = ["harness-core/otel-grpc", "harness-api/otel-grpc", "harness-gateway/otel-grpc"]

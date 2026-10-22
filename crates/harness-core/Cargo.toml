@@ -22,11 +22,13 @@ command-group = { version = "5.0", features = ["with-tokio"] }
 zip = { version = "9.0.5", default-features = false, features = ["deflate", "deflate64"] }
 futures-util = "0.3"
 # ComfyUI progress socket (`comfyui`): plain `ws://` only, no TLS stack of its own.
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect"] }
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "native-tls"] }
 bytes = "1"
 base64 = "0.22"
 regex = "1.10"
 sha2 = "0.11"
+snow = "0.10"
+blake2 = "0.10"
 dirs = "7"
 flate2 = "1"
 tar = "0.4"
@@ -71,6 +73,7 @@ harness-onnx = { path = "../harness-onnx", default-features = false }
 # Test seams for other crates' integration tests (`ProcessManager::simulate_running_for_tests`);
 # only dev-dependencies enable it, so release builds leave them out.
 test-support = []
+remote-access = []
 # OpenAPI schemas (utoipa::ToSchema) for the types the Control API exposes.
 openapi = ["dep:utoipa"]
 # OpenTelemetry OTLP export of gateway traces, logs and metrics over OTLP/HTTP (protobuf). The

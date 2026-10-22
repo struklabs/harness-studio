@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { localizeError } from '#lib/network.js';
   import type { AppSettings } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
   import type { SettingsDraft } from './form.svelte';
@@ -15,9 +18,30 @@
   }
 
   let { page = 'network-listen', settings, form, onSettingsUpdated }: Props = $props();
+  let remoteAvailable = $state(false);
+  let remoteEnabled = $state(false);
+  let remoteBusy = $state(false);
+  let remoteError = $state('');
+  onMount(() => {
+    void Promise.all([invoke<boolean>('remote_access_available'), invoke<{enabled: boolean}>('remote_access_settings_get')])
+      .then(([available, saved]) => { remoteAvailable = available; remoteEnabled = saved.enabled; })
+      .catch((e: unknown) => { remoteError = localizeError(e); });
+  });
+  async function setRemote(enabled: boolean) {
+    remoteBusy = true; remoteError = '';
+    try { await invoke('remote_access_settings_set', { enabled }); remoteEnabled = enabled; }
+    catch (e) { remoteError = localizeError(e); }
+    finally { remoteBusy = false; }
+  }
 </script>
 
 <div hidden={page !== 'network-listen'} class="flex flex-col gap-6">
+  {#if remoteAvailable}
+    <SettingGroup advanced title={t('settings.remote_access_title')}>
+      <SwitchRow advanced id="remote-access-struklabs" label={t('settings.remote_access_title')} hint={t('settings.remote_access_hint')} note={t('settings.remote_access_preview')} checked={remoteEnabled} disabled={remoteBusy} onchange={setRemote} />
+      {#if remoteError}<p role="alert" class="text-sm text-destructive">{remoteError}</p>{/if}
+    </SettingGroup>
+  {/if}
   <SettingGroup title={t('settings.default_params_title')} hint={t('settings.default_params_desc')}>
     <SettingRow label={t('settings.default_port_label')} for="def-port" hint={t('settings.default_port_hint')} dirty={form.isDirty('port')}>
       <NumberField id="def-port" min={0} max={65535} value={form.get('port')} onchange={(v) => form.set('port', v)} />

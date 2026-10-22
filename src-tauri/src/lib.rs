@@ -157,6 +157,11 @@ pub fn run() {
             if std::env::var_os("HARNESS_MEMORY_SECRETS").is_some_and(|v| v == "1") {
                 secrets::use_memory_store();
             }
+            tauri::async_runtime::spawn(async {
+                harness_core::pairing::remote::runtime::restart(
+                    harness_core::control_api::TokenStore::global(),
+                );
+            });
             if data_dir_override.is_some() {
                 std::fs::write(data_dir.join(".harness-owned"), &app.config().identifier)?;
             }
@@ -655,6 +660,9 @@ pub fn run() {
             pairing_connect_start,
             pairing_connect_poll,
             pairing_settings_get,
+            remote_access_available,
+            remote_access_settings_get,
+            remote_access_settings_set,
             pairing_settings_set,
             cloud_list,
             cloud_models,
