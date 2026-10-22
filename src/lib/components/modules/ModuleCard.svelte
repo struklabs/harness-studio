@@ -2,7 +2,8 @@
   import BadgeCheck from '@lucide/svelte/icons/badge-check';
   import Users from '@lucide/svelte/icons/users';
   import { t, type TKey } from '#lib/i18n.svelte.js';
-  import { moduleActions, moduleStatusKey } from '#lib/modules.js';
+  import { builtInPage, moduleActions, moduleStatusKey } from '#lib/modules.js';
+  import { app } from '#lib/stores/app.svelte.js';
   import type { CatalogEntry } from '#lib/moduleCatalog.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
@@ -22,7 +23,8 @@
 
   let manifest = $derived(entry.view.manifest);
   let actions = $derived(moduleActions(entry.view, busy));
-  let statusKey = $derived(manifest.planned ? 'modules.planned' : `modules.${moduleStatusKey(entry.view)}`);
+  let page = $derived(builtInPage(manifest.id));
+  let statusKey = $derived(page ? 'modules.built_in' : manifest.planned ? 'modules.planned' : `modules.${moduleStatusKey(entry.view)}`);
   let Icon = $derived(categoryIcon(entry.category));
   let version = $derived(entry.view.state.installed_version ?? manifest.version);
   /** The single most useful one-click action for this card. */
@@ -73,7 +75,9 @@
     </span>
   </button>
   <div class="flex shrink-0 {layout === 'grid' ? 'justify-end' : ''}">
-    {#if primary}
+    {#if page}
+      <Button size="sm" variant="outline" onclick={() => (app.requestedTab = page)}>{t(`modules.open_${manifest.id}` as TKey)}</Button>
+    {:else if primary}
       <Button size="sm" variant={primary.variant} disabled={busy} onclick={() => onaction(primary.command)}>{t(primary.label as TKey)}</Button>
     {:else if installing}
       <span class="px-2 text-xs text-muted-foreground" role="status">{t('modules.installing')}…</span>

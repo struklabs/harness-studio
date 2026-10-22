@@ -144,7 +144,7 @@
   {/if}
 
   {#if waiting}
-    <div class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5" role="alert">
+    <div class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5" role="alert" data-tool-approval>
       <p class="text-xs leading-snug text-foreground">{t('pg.tool_approval_prompt')}</p>
       {#if call.fromToolOutput}
         <p class="text-xs leading-snug font-medium text-foreground" data-testid="from-tool-output">{t('pg.tool_from_output')}</p>

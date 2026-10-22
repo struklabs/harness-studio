@@ -255,8 +255,9 @@
   </div>
   {#if bulk}<p class="text-sm text-muted-foreground" aria-hidden="true">{t('modules.updating', { done: bulk.done, total: bulk.total })}</p>{:else if pending}<p class="text-sm text-muted-foreground" aria-hidden="true">{t('modules.working')}</p>{/if}
 
-  <div class="grid min-h-0 flex-1 gap-5 lg:grid-cols-[14rem_minmax(0,1fr)]">
-    <aside class="min-h-0 space-y-4 overflow-y-auto lg:pr-1" aria-label={t('modules.filters')}>
+  <div class="grid min-h-0 flex-1 gap-5 md:grid-cols-[13rem_minmax(0,1fr)] lg:grid-cols-[14rem_minmax(0,1fr)]">
+    <!-- Stacked on narrow windows: a short scrolling strip keeps the list in view. -->
+    <aside class="min-h-0 space-y-4 overflow-y-auto max-md:max-h-40 md:pr-1" aria-label={t('modules.filters')}>
       <section>
         <h2 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('modules.filter_status')}</h2>
         <div class="flex flex-wrap gap-1.5" role="group" aria-label={t('modules.filter_status')}>

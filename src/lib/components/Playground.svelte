@@ -1288,7 +1288,11 @@
   $effect(() => {
     const tools = messages.some(m => m.toolCalls?.some(c => c.status === 'running'));
     officeLive.character = { id: 'playground', name: conv?.title || settings.model || t('office.chat_agent'), kind: 'agent', status: awaitingApproval ? 'waiting_for_approval' : streaming ? (tools ? 'running_tool' : 'thinking') : 'idle', run_id: conv?.id, project_id: projects.activeId };
-    officeLive.open = () => { app.requestedTab = 'playground'; app.requestedPlaygroundTab = 'chat'; };
+    officeLive.open = () => {
+      app.requestedTab = 'playground'; app.requestedPlaygroundTab = 'chat';
+      // Agent Office's "Review Approval" lands on the pending card, not wherever the chat was scrolled.
+      if (awaitingApproval) setTimeout(() => document.querySelector('[data-tool-approval]')?.scrollIntoView({ block: 'center' }), 150);
+    };
   });
 
 

@@ -3,8 +3,9 @@
   import TrustPermissions from '../tools/TrustPermissions.svelte';
   import Agents from '../Agents.svelte';
   import { t, getLanguage, type TKey } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
   import { errorText } from '#lib/errors.js';
-  import { moduleActions, moduleStatusKey, progressPercent, type LocaleKeys } from '#lib/modules.js';
+  import { builtInPage, moduleActions, moduleStatusKey, progressPercent, type LocaleKeys } from '#lib/modules.js';
   import { formatBytes, type CatalogEntry } from '#lib/moduleCatalog.js';
   import * as Sheet from '#lib/components/ui/sheet/index.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -46,7 +47,8 @@
 <Sheet.Root bind:open>
   <Sheet.Content class="w-full gap-0 overflow-y-auto data-[side=right]:sm:max-w-xl">
     {#if entry && view && manifest && actions}
-      {@const statusKey = manifest.planned ? 'modules.planned' : `modules.${moduleStatusKey(view)}`}
+      {@const page = builtInPage(manifest.id)}
+      {@const statusKey = page ? 'modules.built_in' : manifest.planned ? 'modules.planned' : `modules.${moduleStatusKey(view)}`}
       <Sheet.Header class="border-b">
         <div class="flex flex-wrap items-center gap-1.5 pr-8">
           {#if entry.origin === 'community'}
@@ -65,6 +67,7 @@
         {/if}
 
         <div class="flex flex-wrap gap-2">
+          {#if page}<Button onclick={() => { open = false; app.requestedTab = page; }}>{t(`modules.open_${manifest.id}` as TKey)}</Button>{/if}
           {#if actions.install}<Button disabled={busy} onclick={() => onaction('install_module', manifest.id)}>{t(view.state.status === 'failed' ? 'modules.retry' : 'modules.install')}</Button>{/if}
           {#if entry.updateAvailable && actions.repair}<Button disabled={busy} onclick={() => onaction('update', manifest.id)}>{t('modules.update')}</Button>{/if}
           {#if actions.open && manifest.id !== 'agents'}<Button onclick={() => onopenmodule(manifest.id)}>{t('modules.open')}</Button>{/if}

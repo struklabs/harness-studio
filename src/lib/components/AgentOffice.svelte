@@ -5,7 +5,7 @@
   import OfficeFloor from '#lib/office/OfficeFloor.svelte';
   import OfficeIso from '#lib/office/OfficeIso.svelte';
   import OfficeWizard from '#lib/office/OfficeWizard.svelte';
-  import { dimensions, presets, newScene, validateScene, statusColor, type Scene, type Character, type Room, type Furniture } from '#lib/office/scene.js';
+  import { dimensions, presets, newScene, roomKey, validateScene, statusColor, type Scene, type Character, type Room, type Furniture } from '#lib/office/scene.js';
   import { OfficeEditor } from '#lib/office/editor.js';
   import { officeApi, officeEvents, type RunDetail } from '#lib/office/api.js';
   import { onWindowActivity, windowActive, holdReleaseWhile } from '#lib/windowActivity.js';
@@ -13,15 +13,28 @@
   import { projects } from '#lib/stores/projects.svelte.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { isDesktop } from '#lib/transport.js';
-  let editor=$state.raw(new OfficeEditor(newScene(presets[0],t('office.preset_studio'))));
+  /** A copy of a preset; built-in names and their rooms read in the UI language. */
+  function fromPreset(preset:Scene){
+    const builtin=preset.id.startsWith('builtin-');const next=newScene(preset,builtin?t(`office.preset_${preset.id.slice(8)}` as TKey):preset.name);
+    if(builtin)for(const room of next.rooms){const key=roomKey(room.name);const name=t(key as TKey);if(name!==key)room.name=name;}
+    return next;
+  }
+  /** A running job holds the GPU; "running tool" is the agent wording. */
+  const statusLabel=(c:Character)=>t(c.kind==='job'&&c.status==='running_tool'?'office.status_job_running':`office.status_${c.status}` as TKey);
+  let editor=$state.raw(new OfficeEditor(fromPreset(presets[0])));
   let scene=$state.raw(untrack(()=>editor.scene)),baseline=$state(''),offices=$state.raw<Scene[]>([]),templates=$state.raw<Scene[]>(presets);
   let characters=$state<Character[]>([]),active=$state(true),connected=$state(false),error=$state(''),notice=$state(''),busy=$state(false),loaded=$state(false);
   let editing=$state(false),wizard=$state(false),selected=$state(''),selectedPreset=$state('builtin-studio'),view=$state<'floor'|'iso'>('floor');
   let chosen=$state<Character|null>(null),detail=$state<RunDetail|null>(null),detailLoading=$state(false),detailError=$state('');
-  let pendingDelete=$state<{id:string;presets:boolean}|null>(null),pendingLoad=$state<Scene|null>(null);
+  let pendingDelete=$state<{id:string;presets:boolean}|null>(null),pendingLoad=$state.raw<Scene|null>(null);
   let presetName=$state('');let fileInput:HTMLInputElement;
   let dirty=$derived(JSON.stringify(scene)!==baseline);
-  let actors=$derived([...characters.filter(c=>c.id!==officeLive.character?.id),...(officeLive.character?[officeLive.character]:[])]);
+  // A notice about the last action (import, preset) is stale once the scene changes again.
+  let noticeScene:Scene|null=null;
+  function say(text:string){notice=text;noticeScene=scene;}
+  $effect(()=>{const current=scene;untrack(()=>{if(notice&&current!==noticeScene)notice='';});});
+  let fixture=$state<Character[]>([]);
+  let actors=$derived([...characters.filter(c=>c.id!==officeLive.character?.id),...(officeLive.character?[officeLive.character]:[]),...fixture]);
   let item=$derived([...scene.rooms,...scene.furniture].find(v=>v.id===selected));
   let selectedRoom=$derived(scene.rooms.find(v=>v.id===selected));
   let selectedDesk=$derived(scene.furniture.find(v=>v.id===selected && v.kind==='desk'));
@@ -43,14 +56,17 @@
     // Snapshot refresh also covers state owned by services without an event producer.
     const timer=setInterval(()=>{if(active)void refresh();},5000);
     const release=holdReleaseWhile('agent-office',()=>dirty);
-    return ()=>{disposed=true;stop?.();off();release();clearInterval(timer);};
+    // Dev only: `?office_fixture=30` (or localStorage `hs_office_fixture`) adds synthetic characters whose status changes every second.
+    let fixtureTimer:ReturnType<typeof setInterval>|undefined;
+    if(import.meta.env.DEV)void import('#lib/dev/officeFixtures.js').then(m=>{const count=m.officeFixtureCount(location.search,localStorage.getItem('hs_office_fixture'));if(!count||disposed)return;let tick=0;fixture=m.fixtureCharacters(count,tick);fixtureTimer=setInterval(()=>{if(active)fixture=m.fixtureCharacters(count,++tick);},1000);});
+    return ()=>{disposed=true;stop?.();off();release();clearInterval(timer);clearInterval(fixtureTimer);};
   });
-  async function save(){busy=true;try{const next=await officeApi.save(scene);baseline=JSON.stringify(next);await documents();notice=t('office.saved');error='';}catch(e){fail(e);}finally{busy=false;}}
-  async function savePreset(){busy=true;try{const template=newScene(scene,presetName.trim()||scene.name);await officeApi.save(template,true);selectedPreset=template.id;await documents();notice=t('office.preset_saved');}catch(e){fail(e);}finally{busy=false;}}
-  async function renamePreset(){const old=templates.find(v=>v.id===selectedPreset);if(!old||old.id.startsWith('builtin-'))return;busy=true;try{await officeApi.save({...old,name:presetName.trim()},true);await documents();notice=t('office.saved');}catch(e){fail(e);}finally{busy=false;}}
-  async function remove(){if(!pendingDelete)return;busy=true;try{const target=pendingDelete;await officeApi.remove(target.id,target.presets);await documents();if(!target.presets&&target.id===scene.id){const next=offices.find(v=>v.id!==target.id);adopt(next??newScene(presets[0],t('office.preset_studio')),!!next);}if(target.presets)selectedPreset='builtin-studio';pendingDelete=null;}catch(e){fail(e);}finally{busy=false;}}
+  async function save(){busy=true;try{const next=await officeApi.save(scene);baseline=JSON.stringify(next);await documents();notice='';error='';}catch(e){fail(e);}finally{busy=false;}}
+  async function savePreset(){busy=true;try{const template=newScene(scene,presetName.trim()||scene.name);await officeApi.save(template,true);selectedPreset=template.id;await documents();say(t('office.preset_saved'));}catch(e){fail(e);}finally{busy=false;}}
+  async function renamePreset(){const old=templates.find(v=>v.id===selectedPreset);if(!old||old.id.startsWith('builtin-'))return;busy=true;try{await officeApi.save({...old,name:presetName.trim()},true);await documents();say(t('office.preset_saved'));}catch(e){fail(e);}finally{busy=false;}}
+  async function remove(){if(!pendingDelete)return;busy=true;try{const target=pendingDelete;await officeApi.remove(target.id,target.presets);await documents();if(!target.presets&&target.id===scene.id){const next=offices.find(v=>v.id!==target.id);adopt(next??fromPreset(presets[0]),!!next);}if(target.presets)selectedPreset='builtin-studio';pendingDelete=null;}catch(e){fail(e);}finally{busy=false;}}
   function duplicate(){adopt(newScene(scene,`${scene.name} ${t('office.copy_suffix')}`));}
-  async function importScene(e:Event){const input=e.currentTarget as HTMLInputElement;const file=input.files?.[0];if(!file)return;try{if(file.size>1024*1024)throw new Error('office.invalid_scene');const parsed=validateScene(JSON.parse(await file.text()));const next=newScene(parsed);if(dirty)pendingLoad=next;else adopt(next);notice=t('office.imported');}catch{fail(new Error('office.invalid_scene'));}finally{input.value='';}}
+  async function importScene(e:Event){const input=e.currentTarget as HTMLInputElement;const file=input.files?.[0];if(!file)return;try{if(file.size>1024*1024)throw new Error('office.invalid_scene');const parsed=validateScene(JSON.parse(await file.text()));const next=newScene(parsed);if(dirty)pendingLoad=next;else adopt(next);say(t('office.imported'));}catch{fail(new Error('office.invalid_scene'));}finally{input.value='';}}
   function exportScene(){const blob=new Blob([JSON.stringify(scene,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`office-${scene.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   function move(id:string,x:number,y:number){const target=[...scene.rooms,...scene.furniture].find(v=>v.id===id);if(target)try{scene=editor.move(id,{x,y,width:target.width,height:target.height});error='';}catch(e){fail(e);}}
   function bounds(key:'x'|'y'|'width'|'height',value:number){if(item)try{scene=editor.move(item.id,{x:item.x,y:item.y,width:item.width,height:item.height,[key]:value});error='';}catch(e){fail(e);}}
@@ -74,7 +90,7 @@
   {#if pendingDelete}<div class="confirm" role="alert"><p>{t('office.delete_confirm')}</p><button class="danger" disabled={busy} onclick={remove}>{t('office.delete')}</button><button onclick={()=>pendingDelete=null}>{t('office.cancel')}</button></div>{/if}
   {#if pendingLoad}<div class="confirm" role="alert"><p>{t('office.discard_confirm')}</p><button onclick={()=>{if(pendingLoad)adopt(pendingLoad,offices.some(v=>v.id===pendingLoad?.id));pendingLoad=null;}}>{t('office.discard')}</button><button onclick={()=>pendingLoad=null}>{t('office.cancel')}</button></div>{/if}
   <div class="toolbar">
-    <label class="sr-only" for="office-select">{t('office.offices')}</label><select id="office-select" value={offices.some(v=>v.id===scene.id)?scene.id:''} onchange={e=>{const next=offices.find(v=>v.id===e.currentTarget.value);if(next)requestLoad(next);}}><option value="">{t('office.unsaved')}</option>{#each offices as o}<option value={o.id}>{o.name}</option>{/each}</select>
+    <label class="sr-only" for="office-select">{t('office.offices')}</label><select id="office-select" value={offices.some(v=>v.id===scene.id)?scene.id:''} onchange={e=>{const next=offices.find(v=>v.id===e.currentTarget.value);if(next)requestLoad(next);}}><option value="">{t('office.unsaved_office')}</option>{#each offices as o}<option value={o.id}>{o.name}</option>{/each}</select>
     <button disabled={busy||!loaded} onclick={()=>wizard=true}>{t('office.new')}</button><button disabled={busy} onclick={duplicate}>{t('office.duplicate')}</button><button class="primary" disabled={busy||!loaded||!dirty} onclick={save}>{t('office.save')}</button>
     <button disabled={!offices.some(v=>v.id===scene.id)||busy} onclick={()=>pendingDelete={id:scene.id,presets:false}}>{t('office.delete')}</button><span class="spacer"></span><button onclick={exportScene}>{t('office.export')}</button><button onclick={()=>fileInput.click()}>{t('office.import')}</button><input bind:this={fileInput} type="file" accept="application/json,.json" onchange={importScene} class="sr-only" aria-label={t('office.import')}/>
   </div>
@@ -100,11 +116,11 @@
         {/if}
       </aside>{/if}
     </div>
-    <details class="presets"><summary>{t('office.presets')}</summary><div class="preset-tools"><label>{t('office.preset')}<select bind:value={selectedPreset}>{#each templates as template}<option value={template.id}>{template.id.startsWith('builtin-')?t(`office.preset_${template.id.slice(8)}` as TKey):template.name}</option>{/each}</select></label><button onclick={()=>{const preset=templates.find(v=>v.id===selectedPreset);if(preset){const next=newScene(preset,preset.id.startsWith('builtin-')?t(`office.preset_${preset.id.slice(8)}` as TKey):preset.name);if(dirty)pendingLoad=next;else adopt(next);}}}>{t('office.use_preset')}</button><label>{t('office.preset_name')}<input bind:value={presetName}/></label><button disabled={busy} onclick={savePreset}>{t('office.save_preset')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')||!presetName.trim()} onclick={renamePreset}>{t('office.rename')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')} onclick={()=>pendingDelete={id:selectedPreset,presets:true}}>{t('office.delete')}</button></div></details>
+    <details class="presets"><summary>{t('office.presets')}</summary><div class="preset-tools"><label>{t('office.preset')}<select bind:value={selectedPreset}>{#each templates as template}<option value={template.id}>{template.id.startsWith('builtin-')?t(`office.preset_${template.id.slice(8)}` as TKey):template.name}</option>{/each}</select></label><button onclick={()=>{const preset=templates.find(v=>v.id===selectedPreset);if(preset){const next=fromPreset(preset);if(dirty)pendingLoad=next;else adopt(next);}}}>{t('office.use_preset')}</button><label>{t('office.preset_name')}<input bind:value={presetName}/></label><button disabled={busy} onclick={savePreset}>{t('office.save_preset')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')||!presetName.trim()} onclick={renamePreset}>{t('office.rename')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')} onclick={()=>pendingDelete={id:selectedPreset,presets:true}}>{t('office.delete')}</button></div></details>
     <section class="activity" aria-labelledby="office-activity-title"><div class="activity-header"><h2 id="office-activity-title">{t('office.activity')}</h2><span>{actors.length}</span><button onclick={()=>void refresh()}>{t('office.refresh')}</button></div><p class="hint">{t('office.activity_hint')}</p>
-      <ul class="character-list">{#each actors as c (c.id)}<li><button class:chosen={chosen?.id===c.id} onclick={()=>open(c)} draggable={editing} ondragstart={e=>e.dataTransfer?.setData('text/plain',c.id)}><span class="character-icon" style:background={statusColor[c.status]}>{#if c.kind==='device'}<Cpu class="size-3.5" />{:else if c.kind==='job'}<ListTodo class="size-3.5" />{:else}<Bot class="size-3.5" />{/if}</span><span class="character-name">{c.name}<small>{t(`office.kind_${c.kind}` as TKey)}</small></span><span class="status-badge" style:--status={statusColor[c.status]}>{t(`office.status_${c.status}`)}</span></button></li>{/each}</ul>
+      <ul class="character-list">{#each actors as c (c.id)}<li><button class:chosen={chosen?.id===c.id} onclick={()=>open(c)} draggable={editing} ondragstart={e=>e.dataTransfer?.setData('text/plain',c.id)}><span class="character-icon" style:background={statusColor[c.status]}>{#if c.kind==='device'}<Cpu class="size-3.5" />{:else if c.kind==='job'}<ListTodo class="size-3.5" />{:else}<Bot class="size-3.5" />{/if}</span><span class="character-name">{c.name}<small>{t(`office.kind_${c.kind}` as TKey)}</small></span><span class="status-badge" style:--status={statusColor[c.status]}>{statusLabel(c)}</span></button></li>{/each}</ul>
     </section>
-    {#if focusedCharacter}<section class="detail" aria-labelledby="office-detail-title"><header><h2 id="office-detail-title">{focusedCharacter.name}</h2><button onclick={()=>chosen=null}>{t('office.close')}</button></header><p>{t(`office.status_${focusedCharacter.status}`)}</p>
+    {#if focusedCharacter}<section class="detail" aria-labelledby="office-detail-title"><header><h2 id="office-detail-title">{focusedCharacter.name}</h2><button onclick={()=>chosen=null}>{t('office.close')}</button></header><p>{statusLabel(focusedCharacter)}</p>
       {#if focusedCharacter.id==='playground'}<p>{t(focusedCharacter.status==='waiting_for_approval'?'office.approval_hint':'office.chat_hint')}</p><button class="primary" onclick={()=>officeLive.open?.()}>{t(focusedCharacter.status==='waiting_for_approval'?'office.open_approval':'office.open_run')}</button>
       {:else if detailLoading}<p role="status">{t('office.loading')}</p>{:else if detailError}<p role="alert">{detailError}</p>{:else if detail}<h3>{t('office.task')}</h3><pre>{detail.prompt}</pre><h3>{t('office.output')}</h3><pre>{detail.output||t('office.no_output')}</pre>{#if detail.error}<p role="alert">{detail.error}</p>{/if}<p>{detail.audit.join(' → ')}</p>
       {:else}<p>{t(focusedCharacter.kind==='device'?'office.device_hint':focusedCharacter.kind==='job'?'office.job_hint':'office.no_run')}</p>{#if focusedCharacter.kind==='job'}<button onclick={()=>app.requestedTab='dashboard'}>{t('office.open_jobs')}</button>{/if}{/if}

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { OfficeEditor } from '../src/lib/office/editor.ts';
-import { presets, validateScene, wizardScene, eventStatus, positions } from '../src/lib/office/scene.ts';
+import { presets, roomKey, validateScene, wizardScene, eventStatus, positions } from '../src/lib/office/scene.ts';
 const clone = () => structuredClone(presets[0]);
 test('all built-in scenes pass validation and retain their version', () => {
   assert.equal(presets.length,4);
@@ -10,7 +10,7 @@ test('all built-in scenes pass validation and retain their version', () => {
 });
 test('validation rejects malformed imports, references, overlaps and noninteger coordinates', () => {
   for(const mutate of [s=>s.version=2,s=>s.rooms[0].x=-1,s=>s.rooms[0].width=100,s=>s.furniture[0].x=NaN,s=>s.furniture[0].x=1.5,s=>s.desk_agents.missing='agent',s=>s.room_projects.missing='project',s=>s.rooms.push({...s.rooms[0],id:'overlap'}),s=>s.theme='external',s=>s.rooms[0].color='red',s=>s.extra=true,s=>s.furniture[0].kind='unknown',s=>s.desk_agents={'desk-0-0':'same','desk-0-1':'same'}]) {
-    const scene=clone();mutate(scene);assert.throws(()=>validateScene(scene),/office.invalid_scene/);
+    const scene=clone();mutate(scene);assert.throws(()=>validateScene(scene),/office\.(invalid_scene|room_overlap)/);
   }
   for(const value of [null,[],{},'scene'])assert.throws(()=>validateScene(value));
 });
@@ -44,4 +44,27 @@ test('navigation is advanced, 3D is separately loaded and hidden frames are canc
   assert.match(read('../src/lib/uiLevel.ts'),/advancedTabs = \['office'/);
   assert.match(read('../src/lib/office/OfficeIso.svelte'),/import\('\.\/isometric'\)/);
   assert.match(read('../src/lib/office/isometric.ts'),/if\(!active\)\{cancelAnimationFrame\(frame\);return;/);
+  // A deep $state proxy cannot be structuredClone'd by the editor, so "Discard Changes" would silently fail.
+  assert.match(read('../src/lib/components/AgentOffice.svelte'),/pendingLoad=\$state\.raw</);
+});
+test('every built-in room name has a translated label', async () => {
+  const { default: { tr, en } } = await import('../src/lib/locales/office.ts');
+  for (const scene of presets) for (const room of scene.rooms) {
+    const key = roomKey(room.name);
+    assert.ok(key in tr && key in en, key);
+  }
+});
+test('dev office fixture reads its count and rotates statuses', async () => {
+  const { officeFixtureCount, fixtureCharacters } = await import('../src/lib/dev/officeFixtures.ts');
+  assert.equal(officeFixtureCount('?office_fixture=30', null), 30);
+  assert.equal(officeFixtureCount('', '12'), 12);
+  assert.equal(officeFixtureCount('?office_fixture=abc', null), 0);
+  assert.equal(officeFixtureCount('?office_fixture=9999', null), 200);
+  const a = fixtureCharacters(30, 0), b = fixtureCharacters(30, 1);
+  assert.equal(a.length, 30); assert.notEqual(a[0].status, b[0].status);
+  assert.equal(positions(clone(), a).length, 30);
+});
+test('overlapping rooms are reported as an overlap', () => {
+  const scene = clone(); scene.rooms.push({ ...scene.rooms[0], id: 'room-x' });
+  assert.throws(() => validateScene(scene), /office\.room_overlap/);
 });

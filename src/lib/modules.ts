@@ -26,6 +26,9 @@ export interface ModuleView {
   progress: { step: string; detail: string; downloaded_bytes: number; total_bytes: number } | null;
   components: Record<string, { version: string; owners: string[]; disk_bytes: number }>;
 }
+/** Modules that shipped as a page of the app: nothing to install, the card opens the page. */
+export const BUILT_IN_PAGES: Readonly<Record<string, string>> = { training: 'training' };
+export function builtInPage(id: string): string | null { return BUILT_IN_PAGES[id] ?? null; }
 /** Keep planned/incompatible entries inspectable while preventing backend actions. */
 export function moduleActions(module: Pick<ModuleView, 'manifest' | 'state' | 'incompatibility' | 'progress'> & { needs_repair?: string[] }, busy = false) {
   const planned = module.manifest.planned;
