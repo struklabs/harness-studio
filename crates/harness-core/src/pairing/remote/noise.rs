@@ -75,6 +75,7 @@ impl Identity {
             started: None,
             step: 0,
             assembled: Vec::new(),
+            hash: None,
         })
     }
 }
@@ -106,6 +107,7 @@ pub struct Channel {
     started: Option<Instant>,
     step: u8,
     assembled: Vec<u8>,
+    hash: Option<Vec<u8>>,
 }
 
 pub struct Received {
@@ -129,6 +131,11 @@ impl Channel {
                 .map_err(|_| ERR_PROTOCOL.into()),
             _ => Err(ERR_PROTOCOL.into()),
         }
+    }
+
+    /// Noise handshake hash of this session (channel binding for the SAS).
+    pub fn handshake_hash(&self) -> Result<Vec<u8>, String> {
+        self.hash.clone().ok_or_else(|| ERR_PROTOCOL.into())
     }
 
     fn frame(&self, kind: u8, payload: &[u8]) -> Vec<u8> {
@@ -186,6 +193,7 @@ impl Channel {
                     else {
                         unreachable!()
                     };
+                    self.hash = Some(hs.get_handshake_hash().to_vec());
                     self.state = State::Transport(Box::new(
                         hs.into_transport_mode().map_err(|_| ERR_PROTOCOL)?,
                     ));

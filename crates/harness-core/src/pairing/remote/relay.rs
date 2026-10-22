@@ -3,6 +3,7 @@ use super::{
     noise::{Channel, Identity},
     *,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use futures_util::{SinkExt, StreamExt};
 use std::future::Future;
 use std::pin::Pin;
@@ -20,12 +21,31 @@ pub struct RelayTicket {
     pub public_key: [u8; 32],
     pub expires_at: u64,
 }
+/// Desktop tickets last at most 300 s (APP_PROTOCOL 7.5) and tolerate 5 s of clock skew.
+pub const MAX_DESKTOP_TICKET_SECS: u64 = 300;
+const TICKET_SKEW_SECS: u64 = 5;
+
+fn jti_cache() -> &'static Mutex<HashMap<String, u64>> {
+    static CACHE: std::sync::OnceLock<Mutex<HashMap<String, u64>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+fn jwt_part(part: &str) -> Result<Value, String> {
+    let bytes = URL_SAFE_NO_PAD.decode(part).map_err(|_| ERR_PROTOCOL)?;
+    serde_json::from_slice(&bytes).map_err(|_| ERR_PROTOCOL.into())
+}
+
 impl RelayTicket {
+    /// Checks the claims of the desktop ticket before it is ever sent to a relay. The relay (and
+    /// the platform JWKS) own signature verification; the desktop pins what it can check offline:
+    /// algorithm, lifetime, audience, role, device, key binding and single use.
     fn validate(&self, key: &[u8; 32]) -> Result<(), String> {
-        if self.public_key != *key
-            || self.expires_at <= control_api::now_secs()
-            || self.expires_at > control_api::now_secs() + 60
-            || !(16..=4096).contains(&self.credential.len())
+        let now = control_api::now_secs();
+        let parts: Vec<&str> = self.credential.split('.').collect();
+        if parts.len() != 3
+            || parts[2].is_empty()
+            || self.credential.len() > 4096
+            || self.public_key != *key
             || !(8..=64).contains(&self.desktop_id.len())
             || !self
                 .desktop_id
@@ -34,9 +54,66 @@ impl RelayTicket {
         {
             return Err(ERR_PROTOCOL.into());
         }
+        let header = jwt_part(parts[0])?;
+        // Algorithm pinning: EdDSA only. `none`, HS* and anything else are rejected.
+        if header["alg"] != "EdDSA" || !header["kid"].is_string() {
+            return Err(ERR_PROTOCOL.into());
+        }
+        let claims = jwt_part(parts[1])?;
+        let (Some(iat), Some(exp)) = (claims["iat"].as_u64(), claims["exp"].as_u64()) else {
+            return Err(ERR_PROTOCOL.into());
+        };
+        let jti = claims["jti"].as_str().unwrap_or("");
+        if claims["aud"] != "struklabs-relay"
+            || claims["role"] != "desktop"
+            || claims["device"] != self.desktop_id.as_str()
+            || claims["noise_static_pub"] != encode(key).as_str()
+            || !claims["mode"].is_null()
+            || !(16..=64).contains(&jti.len())
+            || exp <= iat
+            || exp - iat > MAX_DESKTOP_TICKET_SECS
+            || exp != self.expires_at
+            || now + TICKET_SKEW_SECS < iat
+            || now >= exp
+        {
+            return Err(ERR_PROTOCOL.into());
+        }
+        // Single use per process; a provider that replays a ticket is rejected before dialing.
+        let mut seen = jti_cache().lock().unwrap();
+        seen.retain(|_, until| *until > now);
+        if seen.len() >= 1024 || seen.insert(jti.to_string(), exp).is_some() {
+            return Err(ERR_PROTOCOL.into());
+        }
         Ok(())
     }
 }
+
+/// Builds an unsigned, JWT-shaped credential for tests and mocks.
+#[cfg(test)]
+pub(super) fn test_credential(
+    key: &[u8; 32],
+    desktop_id: &str,
+    alg: &str,
+    jti: &str,
+    iat: u64,
+    exp: u64,
+) -> String {
+    let h = encode(
+        json!({"alg":alg,"kid":"test-kid","typ":"JWT"})
+            .to_string()
+            .as_bytes(),
+    );
+    let c = encode(
+        json!({"iss":"https://example.test","aud":"struklabs-relay","sub":"pairwise-handle",
+        "device":desktop_id,"role":"desktop","noise_static_pub":encode(key),
+        "limits":{"sessions":8,"bytes_per_minute":8388608,"idle_timeout_ms":60000},
+        "jti":jti,"iat":iat,"exp":exp})
+        .to_string()
+        .as_bytes(),
+    );
+    format!("{h}.{c}.c2lnbmF0dXJl")
+}
+
 pub trait TicketProvider: Send + Sync {
     fn ticket(&self, desktop_key: [u8; 32]) -> TicketFuture<'_>;
 }
@@ -141,6 +218,7 @@ impl DesktopSession {
                         &v["body"],
                         peer,
                         self.desktop_key,
+                        &self.channel.handshake_hash()?,
                         &self.desktop_id,
                         &self.desktop_name,
                         &self.tokens,
@@ -502,7 +580,7 @@ async fn connect_with_apps(
                                 session.apps=apps.clone();
                                 sessions.insert(sid.into(),(session,false,Instant::now()));
                             }
-                            "transport.fallback" if authenticated => { sessions.get_mut(sid).ok_or(ERR_PROTOCOL)?.1=true; }
+                            "transport.fallback" if authenticated => { if let Some(owned)=sessions.get_mut(sid) {owned.1=true;} }
                             "peer.left" => { if let Some((mut s,_,_))=sessions.remove(sid) {s.close();} }
                             "ping" => {
                                 ws.send(Message::Text(json!({"v":1,"seq":seq,"session":sid,"type":"pong","ts":v["ts"]}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?; seq+=1;
@@ -540,19 +618,57 @@ async fn connect_with_apps(
 #[cfg(test)]
 mod ticket_tests {
     use super::*;
-    #[test]
-    fn tickets_are_short_lived_and_bound_to_the_noise_key() {
-        let mut ticket = RelayTicket {
-            credential: "mock-ticket-no-production-value".into(),
+    fn ticket(key: [u8; 32], alg: &str, jti: &str, iat: u64, exp: u64) -> RelayTicket {
+        RelayTicket {
+            credential: test_credential(&key, "desktop_01", alg, jti, iat, exp),
             desktop_id: "desktop_01".into(),
-            public_key: [1; 32],
-            expires_at: control_api::now_secs() + 60,
-        };
-        assert!(ticket.validate(&[1; 32]).is_ok());
-        assert!(ticket.validate(&[2; 32]).is_err());
-        ticket.expires_at = control_api::now_secs();
-        assert!(ticket.validate(&[1; 32]).is_err());
-        ticket.expires_at = control_api::now_secs() + 61;
-        assert!(ticket.validate(&[1; 32]).is_err());
+            public_key: key,
+            expires_at: exp,
+        }
+    }
+    #[test]
+    fn desktop_ticket_pins_alg_lifetime_key_and_rejects_jti_replay() {
+        let now = control_api::now_secs();
+        let k = [1; 32];
+        assert!(ticket(k, "EdDSA", "jti-ok-000000001", now, now + 300)
+            .validate(&k)
+            .is_ok());
+        // key binding
+        assert!(ticket(k, "EdDSA", "jti-key-00000001", now, now + 300)
+            .validate(&[2; 32])
+            .is_err());
+        // algorithm pinning
+        for alg in ["none", "HS256", "RS256", "eddsa"] {
+            assert!(
+                ticket(k, alg, "jti-alg-00000001", now, now + 300)
+                    .validate(&k)
+                    .is_err(),
+                "{alg}"
+            );
+        }
+        // lifetime: exp - iat <= 300, expired, not yet valid
+        assert!(ticket(k, "EdDSA", "jti-long-0000001", now, now + 301)
+            .validate(&k)
+            .is_err());
+        assert!(ticket(k, "EdDSA", "jti-old-00000001", now - 400, now - 100)
+            .validate(&k)
+            .is_err());
+        assert!(ticket(k, "EdDSA", "jti-future-00001", now + 60, now + 120)
+            .validate(&k)
+            .is_err());
+        // expires_at must match the signed exp
+        let mut t = ticket(k, "EdDSA", "jti-exp-00000001", now, now + 100);
+        t.expires_at = now + 200;
+        assert!(t.validate(&k).is_err());
+        // replay: the second use of the same jti fails, even though everything else is valid
+        let first = ticket(k, "EdDSA", "jti-replay-000001", now, now + 60);
+        assert!(first.validate(&k).is_ok());
+        assert!(ticket(k, "EdDSA", "jti-replay-000001", now, now + 60)
+            .validate(&k)
+            .is_err());
+        // not a JWT at all
+        let mut bad = ticket(k, "EdDSA", "jti-bad-00000001", now, now + 60);
+        bad.credential = "mock-ticket-no-production-value".into();
+        assert!(bad.validate(&k).is_err());
     }
 }

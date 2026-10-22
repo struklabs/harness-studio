@@ -2,15 +2,26 @@ use super::*;
 use noise::{Identity, SUITE};
 use relay::TicketProvider;
 
+const HASH: [u8; 32] = [0x5a; 32];
+
 struct MockTickets;
 impl TicketProvider for MockTickets {
     fn ticket(&self, key: [u8; 32]) -> relay::TicketFuture<'_> {
         Box::pin(async move {
+            let now = control_api::now_secs();
+            let jti = control_api::hex(&control_api::random_bytes::<16>().unwrap());
             Ok(relay::RelayTicket {
-                credential: "mock-ticket-no-production-value".into(),
+                credential: relay::test_credential(
+                    &key,
+                    "desktop_01",
+                    "EdDSA",
+                    &jti,
+                    now,
+                    now + 60,
+                ),
                 desktop_id: "desktop_01".into(),
                 public_key: key,
-                expires_at: control_api::now_secs() + 60,
+                expires_at: now + 60,
             })
         })
     }
@@ -24,17 +35,176 @@ fn unhex(s: &str) -> Vec<u8> {
 }
 
 #[test]
-fn sas_commitment_and_fingerprint_match_web_noble_primitives() {
-    // Computed with the read-only browser package's pinned @noble/hashes/blake2.js.
+fn sas_matches_review_c1_derivation_and_excludes_claim_id() {
+    // Independent vectors computed with Python hashlib.blake2s over the review's formulas:
+    // commit = H("struklabs/pairing/sas-commit/v1" || lp(nc) || lp(Kc) || lp(h) || lp(name))
+    // sas    = H("struklabs/pairing/sas/v1" || lp(nc) || lp(nd) || lp(Kc) || lp(Kd) || lp(h) || lp(name))
     assert_eq!(
-        sas("claim_0001", &[3; 32], &[4; 32], &[5; 32], &[6; 32]),
-        "222245"
+        encode(&commitment(&[3; 32], &[5; 32], &HASH, "Browser")),
+        "yKkCvUivWLDoBXja2Fb9gY4oentLyx4dI50Pl8jeHDU"
     );
     assert_eq!(
-        encode(&commitment(&[3; 32], &[5; 32])),
-        "1spWyxt4F9IBzlxa3WdpxA_V1gM2cUq0ZXKgq6T95dE"
+        sas(&[3; 32], &[4; 32], &[5; 32], &[6; 32], &HASH, "Browser"),
+        "230994"
+    );
+    // Every committed input changes the commitment and the SAS; claim_id is not a parameter at all.
+    let base = commitment(&[3; 32], &[5; 32], &HASH, "Browser");
+    assert_ne!(base, commitment(&[3; 32], &[5; 32], &[0x5b; 32], "Browser"));
+    assert_ne!(base, commitment(&[3; 32], &[5; 32], &HASH, "Browser2"));
+    assert_ne!(base, commitment(&[3; 32], &[7; 32], &HASH, "Browser"));
+    assert_ne!(base, commitment(&[8; 32], &[5; 32], &HASH, "Browser"));
+    let s = sas(&[3; 32], &[4; 32], &[5; 32], &[6; 32], &HASH, "Browser");
+    assert_ne!(
+        s,
+        sas(
+            &[3; 32],
+            &[4; 32],
+            &[5; 32],
+            &[6; 32],
+            &[0x5b; 32],
+            "Browser"
+        )
+    );
+    assert_ne!(
+        s,
+        sas(&[3; 32], &[4; 32], &[5; 32], &[6; 32], &HASH, "Other")
     );
     assert_eq!(fingerprint(&[6; 32]), "frhbwND9t8F1dcZ8C9s4GQ");
+}
+
+#[test]
+fn reveal_burns_the_claim_when_hash_name_or_key_were_spliced_by_a_relay() {
+    // A relay that terminates Noise on both legs produces a different handshake hash per leg,
+    // so the commitment made over leg 1 cannot open on leg 2. Name rewrites fail the same way.
+    for case in ["hash", "name", "key", "ok"] {
+        let (_dir, tokens, hub, d, c) = setup();
+        let nonce = [3; 32];
+        let code = offer(&hub);
+        let sent_hash = if case == "hash" { [0x11; 32] } else { HASH };
+        let sent_name = if case == "name" { "Evil" } else { "Browser" };
+        let committed_key = if case == "key" { [0x42; 32] } else { c.public };
+        let commit = commitment(&nonce, &committed_key, &sent_hash, sent_name);
+        let (status, claim) = hub.remote_pair(
+            "claim",
+            &json!({"code":code,"name":"Browser","commit":encode(&commit)}),
+            c.public,
+            d.public,
+            &HASH,
+            "desktop_01",
+            "Test",
+            &tokens,
+        );
+        assert_eq!(status, 201);
+        let reveal = json!({"claim_id":claim["claim_id"],"poll_secret":claim["poll_secret"],"nonce_c":encode(&nonce),"static_pub_c":encode(&c.public)});
+        let (status, _) = hub.remote_pair(
+            "reveal",
+            &reveal,
+            c.public,
+            d.public,
+            &HASH,
+            "desktop_01",
+            "Test",
+            &tokens,
+        );
+        assert_eq!(status == 200, case == "ok", "{case}");
+        if case != "ok" {
+            // burned: a second reveal cannot succeed either
+            assert_ne!(
+                hub.remote_pair(
+                    "reveal",
+                    &reveal,
+                    c.public,
+                    d.public,
+                    &HASH,
+                    "desktop_01",
+                    "Test",
+                    &tokens
+                )
+                .0,
+                200
+            );
+        }
+    }
+}
+
+#[test]
+fn poll_requires_valid_reveal_from_the_same_static_key_and_tokens_fail_closed_without_a_bound_key()
+{
+    let (_dir, tokens, hub, d, c) = setup();
+    let other = Identity::from_secret([11; 32]).unwrap();
+    let nonce = [3; 32];
+    let claim_for = |code: String| {
+        hub.remote_pair(
+            "claim",
+            &json!({"code":code,"name":"Browser","commit":encode(&commitment(&nonce,&c.public,&HASH,"Browser"))}),
+            c.public,
+            d.public,
+            &HASH,
+            "desktop_01",
+            "Test",
+            &tokens,
+        )
+        .1
+    };
+    let claim = claim_for(offer(&hub));
+    let body = json!({"claim_id":claim["claim_id"],"poll_secret":claim["poll_secret"],"nonce_c":encode(&nonce),"static_pub_c":encode(&c.public)});
+    let call = |op: &str, who: &Identity| {
+        hub.remote_pair(
+            op,
+            &body,
+            who.public,
+            d.public,
+            &HASH,
+            "desktop_01",
+            "Test",
+            &tokens,
+        )
+        .0
+    };
+    // poll before any reveal: not found, even for the claiming key with the right secret
+    assert_eq!(call("poll", &c), 410);
+    // a reveal from another static key fails (the body key must equal the Noise key)
+    assert_ne!(call("reveal", &other), 200);
+    // the failed reveal burned the claim: the honest key cannot finish either
+    assert_ne!(call("reveal", &c), 200);
+
+    // fresh claim: valid reveal, then poll from another key is refused and does not consume the token
+    let claim = claim_for(offer(&hub));
+    let body = json!({"claim_id":claim["claim_id"],"poll_secret":claim["poll_secret"],"nonce_c":encode(&nonce),"static_pub_c":encode(&c.public)});
+    let call = |op: &str, who: &Identity| {
+        hub.remote_pair(
+            op,
+            &body,
+            who.public,
+            d.public,
+            &HASH,
+            "desktop_01",
+            "Test",
+            &tokens,
+        )
+        .0
+    };
+    assert_eq!(call("reveal", &c), 200);
+    hub.approve(claim["claim_id"].as_str().unwrap(), &tokens)
+        .unwrap();
+    assert_eq!(
+        call("poll", &other),
+        410,
+        "another session/key cannot take the token"
+    );
+    assert_eq!(
+        call("poll", &c),
+        200,
+        "the claiming key still gets the token exactly once"
+    );
+    assert_eq!(call("poll", &c), 410);
+
+    // fail closed: a token with no recorded Noise key is unusable over Noise, with any key
+    let unbound = tokens.create("Unbound", &[Scope::Read]).unwrap();
+    assert!(hub
+        .remote_authorize(&unbound.token, &c.public, &tokens)
+        .is_err());
+    assert!(tokens.verify_noise(&unbound.token, &c.public).is_none());
 }
 
 #[test]
@@ -141,9 +311,10 @@ fn commitment_prevents_adaptive_nonce_or_key_grinding_and_premature_approval() {
     let code = offer(&hub);
     let (status, claim) = hub.remote_pair(
         "claim",
-        &json!({"code":code,"name":"Browser","commit":encode(&commitment(&nonce,&c.public))}),
+        &json!({"code":code,"name":"Browser","commit":encode(&commitment(&nonce,&c.public,&HASH,"Browser"))}),
         c.public,
         d.public,
+        &HASH,
         "desktop_01",
         "Test",
         &tokens,
@@ -163,8 +334,8 @@ fn commitment_prevents_adaptive_nonce_or_key_grinding_and_premature_approval() {
         changed[..4].copy_from_slice(&n.to_be_bytes());
         if changed != nonce {
             assert_ne!(
-                commitment(&changed, &c.public),
-                commitment(&nonce, &c.public)
+                commitment(&changed, &c.public, &HASH, "Browser"),
+                commitment(&nonce, &c.public, &HASH, "Browser")
             );
         }
     }
@@ -175,6 +346,7 @@ fn commitment_prevents_adaptive_nonce_or_key_grinding_and_premature_approval() {
             &wrong,
             c.public,
             d.public,
+            &HASH,
             "desktop_01",
             "Test",
             &tokens
@@ -190,6 +362,7 @@ fn commitment_prevents_adaptive_nonce_or_key_grinding_and_premature_approval() {
             &correct,
             c.public,
             d.public,
+            &HASH,
             "desktop_01",
             "Test",
             &tokens
@@ -207,9 +380,10 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
     let code = offer(&hub);
     let (_, claim) = hub.remote_pair(
         "claim",
-        &json!({"code":code,"name":"B".repeat(64),"commit":encode(&commitment(&nonce,&c.public))}),
+        &json!({"code":code,"name":"B".repeat(64),"commit":encode(&commitment(&nonce,&c.public,&HASH,&"B".repeat(64)))}),
         c.public,
         d.public,
+        &HASH,
         "desktop_01",
         "Test",
         &tokens,
@@ -220,6 +394,7 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
         &reveal,
         c.public,
         d.public,
+        &HASH,
         "desktop_01",
         "Test",
         &tokens,
@@ -228,11 +403,12 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
     assert_eq!(
         result["verification_code"],
         sas(
-            claim["claim_id"].as_str().unwrap(),
             &nonce,
             &decode32(claim["nonce_d"].as_str().unwrap()).unwrap(),
             &c.public,
-            &d.public
+            &d.public,
+            &HASH,
+            &"B".repeat(64)
         )
     );
     assert_eq!(
@@ -241,6 +417,7 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
             &reveal,
             c.public,
             d.public,
+            &HASH,
             "desktop_01",
             "Test",
             &tokens
@@ -266,6 +443,7 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
         &reveal,
         c.public,
         d.public,
+        &HASH,
         "desktop_01",
         "Test",
         &tokens,
@@ -280,6 +458,7 @@ fn pairing_binds_tokens_to_noise_key_delivers_once_and_revokes_named_device() {
             &reveal,
             c.public,
             d.public,
+            &HASH,
             "desktop_01",
             "Test",
             &tokens
@@ -385,8 +564,13 @@ async fn desktop_mock_relay_test_client_encrypted_pair_and_revoke_end_to_end() {
             let auth=desktop.next().await.unwrap().unwrap().into_text().unwrap();
             let auth:Value=serde_json::from_str(&auth).unwrap(); assert_eq!(auth["role"],"desktop");
             desktop.send(Message::Text(json!({"v":1,"seq":0,"session":"00000000000000000000000000000000","type":"auth.ok","role":"desktop","limits":{"max_frame_bytes":65556,"idle_timeout_ms":60000,"ping_interval_ms":20000}}).to_string().into())).await.unwrap();
+            // Foreign-session traffic on the multiplexed connection: must be ignored, never fatal.
+            desktop.send(Message::Binary(frame_for(0x44,2,&[0;96]).into())).await.unwrap();
+            desktop.send(Message::Binary(frame_for(0x44,1,&[0;32]).into())).await.unwrap();
+            desktop.send(Message::Text(json!({"v":1,"seq":1,"session":"44444444444444444444444444444444","type":"transport.fallback","reason":"policy"}).to_string().into())).await.unwrap();
+            desktop.send(Message::Text(json!({"v":1,"seq":2,"session":"44444444444444444444444444444444","type":"peer.left","reason":"left"}).to_string().into())).await.unwrap();
             ready_tx.send(()).unwrap();
-            for (offset,mode,sid) in [(1,"pair","11111111111111111111111111111111"),(4,"app","22222222222222222222222222222222"),(7,"app","33333333333333333333333333333333")] {
+            for (offset,mode,sid) in [(3,"pair","11111111111111111111111111111111"),(6,"app","22222222222222222222222222222222"),(9,"app","33333333333333333333333333333333")] {
             let (socket,_)=listener.accept().await.unwrap(); let mut browser=accept_async(socket).await.unwrap();
             desktop.send(Message::Text(json!({"v":1,"seq":offset,"session":sid,"type":"session.incoming","mode":mode,"peer":"browser_01"}).to_string().into())).await.unwrap();
             desktop.send(Message::Text(json!({"v":1,"seq":offset+1,"session":sid,"type":"transport.fallback","reason":"policy"}).to_string().into())).await.unwrap();
@@ -410,14 +594,14 @@ async fn desktop_mock_relay_test_client_encrypted_pair_and_revoke_end_to_end() {
         let mut out=[0;65535];let n=client.write_message(&[],&mut out).unwrap(); ws.send(Message::Binary(frame(1,&out[..n]).into())).await.unwrap();
         let response=ws.next().await.unwrap().unwrap().into_data(); client.read_message(&response[21..],&mut out).unwrap();
         let n=client.write_message(&[],&mut out).unwrap(); ws.send(Message::Binary(frame(1,&out[..n]).into())).await.unwrap();
-        let mut transport=client.into_transport_mode().unwrap();
+        let hash=client.get_handshake_hash().to_vec(); let mut transport=client.into_transport_mode().unwrap();
         let nonce=[3;32];
         async fn request(ws:&mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,t:&mut snow::TransportState,sid:u8,v:Value)->Value {
             let data=serde_json::to_vec(&v).unwrap(); let mut record=vec![0;(data.len()+3).div_ceil(64)*64];record[1..3].copy_from_slice(&(data.len() as u16).to_be_bytes());record[3..3+data.len()].copy_from_slice(&data);
             let mut out=vec![0;65535];let n=t.write_message(&record,&mut out).unwrap();ws.send(Message::Binary(frame_for(sid,2,&out[..n]).into())).await.unwrap();
             let bytes=ws.next().await.unwrap().unwrap().into_data();let n=t.read_message(&bytes[21..],&mut out).unwrap();assert!(n>=64); let len=u16::from_be_bytes([out[1],out[2]]) as usize;serde_json::from_slice(&out[3..3+len]).unwrap()
         }
-        let claim=request(&mut ws,&mut transport,0x11,json!({"v":1,"seq":0,"type":"pair.request","id":"req_0001","op":"claim","body":{"code":code,"name":"Browser","commit":encode(&commitment(&nonce,&c.public))}})).await;
+        let claim=request(&mut ws,&mut transport,0x11,json!({"v":1,"seq":0,"type":"pair.request","id":"req_0001","op":"claim","body":{"code":code,"name":"Browser","commit":encode(&commitment(&nonce,&c.public,&hash,"Browser"))}})).await;
         assert_eq!(claim["status"],201);let body=&claim["body"];
         let reveal=json!({"claim_id":body["claim_id"],"poll_secret":body["poll_secret"],"nonce_c":encode(&nonce),"static_pub_c":encode(&c.public)});
         assert_eq!(request(&mut ws,&mut transport,0x11,json!({"v":1,"seq":1,"type":"pair.request","id":"req_0002","op":"reveal","body":reveal})).await["status"],200);
@@ -443,4 +627,67 @@ async fn desktop_mock_relay_test_client_encrypted_pair_and_revoke_end_to_end() {
         assert!(tokens.verify_noise(token,&c.public).is_none());assert!(tokens.verify(&unrelated.token).is_some());
         ws.close(None).await.unwrap();mock.await.unwrap();desktop.abort();
     }).await.unwrap();
+}
+
+#[test]
+fn frame_checks_are_direction_aware_and_strict() {
+    let sid = "11111111111111111111111111111111";
+    let new_channel = || {
+        Identity::from_secret([7; 32])
+            .unwrap()
+            .responder("app", sid)
+            .unwrap()
+    };
+    let initiator = || {
+        snow::Builder::new(SUITE.parse().unwrap())
+            .local_private_key(&[9; 32])
+            .unwrap()
+            .prologue(format!("StrukLabs-App/1|app|{sid}").as_bytes())
+            .unwrap()
+            .build_initiator()
+            .unwrap()
+    };
+    // The desktop is the responder: it never accepts a 96-byte "message 2" or a 64-byte
+    // "message 3" as the first frame, only the 32-byte message 1.
+    for len in [0usize, 31, 33, 64, 96] {
+        assert!(
+            new_channel().receive(&frame(1, &vec![0; len])).is_err(),
+            "first frame len {len}"
+        );
+    }
+    assert!(
+        new_channel().receive(&frame(2, &[0; 32])).is_err(),
+        "transport kind during handshake"
+    );
+    // After message 1 the only valid next frame is 64 bytes; 96 and 32 are rejected and close it.
+    let mut out = [0; 65535];
+    for bad in [32usize, 96] {
+        let mut ch = new_channel();
+        let mut i = initiator();
+        let n = i.write_message(&[], &mut out).unwrap();
+        assert_eq!(n, 32);
+        let reply = ch.receive(&frame(1, &out[..n])).unwrap().reply.unwrap();
+        assert_eq!(reply.len(), 21 + 96);
+        assert!(
+            ch.receive(&frame(1, &vec![0; bad])).is_err(),
+            "message 3 len {bad}"
+        );
+        assert!(
+            ch.receive(&frame(1, &out[..32])).is_err(),
+            "closed after a fatal frame"
+        );
+    }
+    // A frame for another session id is fatal for this channel.
+    let mut ch = new_channel();
+    let mut i = initiator();
+    let n = i.write_message(&[], &mut out).unwrap();
+    assert!(ch.receive(&frame_for(0x22, 1, &out[..n])).is_err());
+    // The length prefix must match and oversize frames are rejected.
+    let mut ch = new_channel();
+    let mut i = initiator();
+    let n = i.write_message(&[], &mut out).unwrap();
+    let mut bad = frame(1, &out[..n]);
+    bad[3] ^= 1;
+    assert!(ch.receive(&bad).is_err());
+    assert!(new_channel().receive(&vec![0; 65557]).is_err());
 }

@@ -47,11 +47,19 @@ pub fn decode32(value: &str) -> Result<[u8; 32], String> {
     Ok(out)
 }
 
-pub fn commitment(nonce: &[u8; 32], key: &[u8; 32]) -> [u8; 32] {
+fn lp(h: &mut Blake2s256, part: &[u8]) {
+    h.update((part.len() as u16).to_be_bytes());
+    h.update(part);
+}
+
+/// SAS commitment (review C1). Covers nc, Kc, the Noise handshake hash and the device name.
+/// `claim_id` is server-assigned and never an input.
+pub fn commitment(nc: &[u8; 32], kc: &[u8; 32], hash: &[u8], name: &str) -> [u8; 32] {
     let mut h = Blake2s256::new();
-    h.update(b"struklabs/pairing/commit/v1");
-    h.update(nonce);
-    h.update(key);
+    h.update(b"struklabs/pairing/sas-commit/v1");
+    for part in [&nc[..], &kc[..], hash, name.as_bytes()] {
+        lp(&mut h, part);
+    }
     h.finalize().into()
 }
 
@@ -71,22 +79,32 @@ pub fn fingerprint(key: &[u8; 32]) -> String {
     encode(&h.finalize()[..16])
 }
 
-pub fn sas(id: &str, nc: &[u8; 32], nd: &[u8; 32], kc: &[u8; 32], kd: &[u8; 32]) -> String {
+/// 6-digit SAS. Both static keys and the handshake hash come from the Noise session, never
+/// from message bodies. `claim_id` is deliberately excluded (a relay could grind it).
+pub fn sas(
+    nc: &[u8; 32],
+    nd: &[u8; 32],
+    kc: &[u8; 32],
+    kd: &[u8; 32],
+    hash: &[u8],
+    name: &str,
+) -> String {
     let mut h = Blake2s256::new();
-    h.update(b"struklabs/pairing/verification/v1");
-    for part in [id.as_bytes(), nc, nd, kc, kd] {
-        h.update((part.len() as u16).to_be_bytes());
-        h.update(part);
+    h.update(b"struklabs/pairing/sas/v1");
+    for part in [&nc[..], &nd[..], &kc[..], &kd[..], hash, name.as_bytes()] {
+        lp(&mut h, part);
     }
     let d = h.finalize();
     format!(
         "{:06}",
-        u32::from_be_bytes(d[..4].try_into().unwrap()) % 1_000_000
+        u64::from_be_bytes(d[..8].try_into().unwrap()) % 1_000_000
     )
 }
 
 pub(super) struct CommittedClaim {
     commit: [u8; 32],
+    hash: Vec<u8>,
+    name: String,
     nonce_d: [u8; 32],
     desktop_key: [u8; 32],
     pub client_key: [u8; 32],
@@ -104,6 +122,7 @@ impl Hub {
         body: &Value,
         client_key: [u8; 32],
         desktop_key: [u8; 32],
+        hash: &[u8],
     ) -> Result<Value, String> {
         let commit = decode32(field(body, "commit")?)?;
         let name = field(body, "name")?.trim();
@@ -144,7 +163,7 @@ impl Hub {
         st.claims.push(Claim {
             id: id.clone(),
             poll_secret: poll_digest(&id, &secret),
-            name,
+            name: name.clone(),
             platform: "browser".into(),
             role: offer.info.role,
             preset: offer.info.preset,
@@ -155,6 +174,8 @@ impl Hub {
             stage: ClaimStage::Pending,
             remote: Some(CommittedClaim {
                 commit,
+                hash: hash.to_vec(),
+                name,
                 nonce_d,
                 desktop_key,
                 client_key,
@@ -189,13 +210,13 @@ impl Hub {
         }
         if !ct_eq(&kc, peer)
             || !ct_eq(&kc, &r.client_key)
-            || !ct_eq(&commitment(&nc, &kc), &r.commit)
+            || !ct_eq(&commitment(&nc, &kc, &r.hash, &r.name), &r.commit)
         {
             c.stage = ClaimStage::Denied;
             return Err(ERR_PROTOCOL.into());
         }
         r.revealed = true;
-        c.verification = sas(&c.id, &nc, &r.nonce_d, &kc, &r.desktop_key);
+        c.verification = sas(&nc, &r.nonce_d, &kc, &r.desktop_key, &r.hash, &r.name);
         Ok(json!({"verification_code":c.verification}))
     }
 
@@ -224,13 +245,14 @@ impl Hub {
         body: &Value,
         peer: [u8; 32],
         desktop_key: [u8; 32],
+        hash: &[u8],
         desktop_id: &str,
         desktop_name: &str,
         tokens: &TokenStore,
     ) -> (u16, Value) {
         let result = (|| -> Result<(u16, Value), String> {
             match op {
-                "claim" => Ok((201, self.remote_claim(body, peer, desktop_key)?)),
+                "claim" => Ok((201, self.remote_claim(body, peer, desktop_key, hash)?)),
                 "reveal" => Ok((200, self.remote_reveal(body, &peer)?)),
                 "poll" => {
                     let id = field(body, "claim_id")?;

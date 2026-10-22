@@ -58,9 +58,12 @@ Envelopes have `v: 1`, a strictly increasing per-direction `seq` beginning at 0,
 and a request `id` echoed in the response. All operations require mode `pair`.
 
 1. `op: "claim"`, `body: {code, name, commit}`. `code` is exactly eight digits.
-   `commit = base64url(BLAKE2s("struklabs/pairing/commit/v1" || nonce_c || static_pub_c))`.
-   The nonce and public key are each 32 bytes. The desktop consumes the offer,
-   fixes the commitment and generates a fresh 32-byte desktop nonce.
+   `commit = base64url(BLAKE2s("struklabs/pairing/sas-commit/v1" || L(nonce_c)
+   || L(Kc) || L(h) || L(name)))` where `Kc` is the claimer's Noise static key, `h`
+   is the Noise handshake hash of this session and `name` is the trimmed device
+   name. The nonce is 32 bytes. The desktop consumes the offer atomically, fixes
+   the commitment and generates a fresh 32-byte desktop nonce. `claim_id` is
+   assigned by the desktop and is never a SAS input.
 2. Status 201 returns `{claim_id, poll_secret, nonce_d, static_pub_d, expires_at,
    poll_interval_ms}`. Nonces and keys are unpadded base64url, `expires_at` is UTC
    RFC 3339 ending in `Z`, and polling is every 2000 ms. The browser checks `static_pub_d` against
@@ -68,12 +71,15 @@ and a request `id` echoed in the response. All operations require mode `pair`.
    Only a claim-salted hash of the poll secret is retained. The legacy HTTP poll
    route cannot deliver browser claims; delivery requires the bound Noise peer.
 3. `op: "reveal"`, `body: {claim_id, poll_secret, nonce_c, static_pub_c}`. The
-   desktop verifies the commitment and requires the client key to equal the
-   Noise peer key. A failed reveal burns the claim; repeat reveals are rejected.
+   desktop recomputes the commitment from its own Noise session (peer static key
+   and handshake hash) and requires `static_pub_c` to equal the Noise peer key.
+   Keys and `h` never come from message bodies. A failed reveal burns the claim; repeat reveals are rejected.
    No claim can be approved or displayed as pending before successful reveal.
 4. Status 200 returns `{verification_code}`. Both screens display the code;
    only explicit owner approval creates a token.
-5. `op: "poll"`, `body: {claim_id, poll_secret}`. Pending: status 202
+5. `op: "poll"`, `body: {claim_id, poll_secret}`. Valid only after a valid reveal
+   and only from a session whose Noise static key equals the claiming key;
+   anything else is `pairing.not_found`. Pending: status 202
    `{status:"pending"}`. Approval: status 200 `{status:"approved", token,
    token_type:"bearer", device_id, desktop_id, desktop_name, scopes, token_policy,
    noise_static_pub}` exactly once. The desktop key is pinned with the token;
@@ -86,19 +92,35 @@ authenticate a browser app session: its registry record must bind its Noise key.
 
 ### Verification and Fingerprint
 
-Let `L(x) = u16be(byte_length(x)) || x`. The browser code is the big-endian u32
-formed by the first four digest bytes, modulo 1,000,000, zero-padded to six digits:
+Let `L(x) = u16be(byte_length(x)) || x` and `H` = BLAKE2s-256. The browser and the
+desktop each derive the same six digits (first eight digest bytes as a big-endian
+u64, modulo 1,000,000, zero-padded):
 
 ```text
-BLAKE2s("struklabs/pairing/verification/v1"
-  || L(UTF8(claim_id)) || L(nonce_c) || L(nonce_d)
-  || L(static_pub_c) || L(static_pub_d))
+SAS = H("struklabs/pairing/sas/v1" || L(nonce_c) || L(nonce_d)
+        || L(Kc) || L(Kd) || L(h) || L(name))
 ```
 
-The commitment fixes the claimer's nonce and key before it learns desktop
-entropy, preventing offline adaptive key/nonce grinding against a chosen code.
-Online attempts remain limited by one-time offers, expiry and owner approval;
-a six-digit comparison retains a one-in-a-million accidental collision risk.
+`Kc`, `Kd` and `h` come from each side's own Noise session. A relay that
+terminates Noise on both legs produces different `h` and keys per leg, and it
+must fix its commitment before seeing `nonce_d`, so it cannot grind a matching
+code (the old `claim_id` input was grindable and is removed). The reveal answer
+still carries `verification_code` (the desktop's SAS) for older clients; the
+browser must not treat it as authentication and must compare the displayed
+numbers by eye. A bad reveal, a denial or a mismatch burns the offer.
+
+Relay tickets are JWTs. Before dialing, the desktop pins `alg = EdDSA` (rejects
+`none`/HS*), requires `aud = struklabs-relay`, `role = desktop`, `device` and
+`noise_static_pub` equal to its own, `exp - iat <= 300`, `iat - 5 s <= now < exp`
+and rejects a reused `jti`. Signature verification belongs to the relay (platform
+JWKS).
+
+The relay connection multiplexes sessions. The desktop accepts frames and
+envelopes only for sessions it was told about (`session.incoming`); anything for
+another session id is ignored, a duplicate `session.incoming` is fatal, and each
+Noise channel additionally rejects frames carrying another session id.
+Handshake frames are direction-aware: the desktop (responder) accepts exactly a
+32-byte message 1 and then a 64-byte message 3.
 
 The QR fingerprint is
 `base64url(BLAKE2s("struklabs/pairing/fingerprint/v1" || static_pub_d)[0..16])`.
@@ -125,7 +147,7 @@ holds at most 16,384 data bytes, and an assembled UTF-8 JSON envelope is at most
 frames close the session. There is no plaintext application transport.
 
 Desktop WSS is outbound to `wss://relay.struklabs.com:7843/v1/app`, subprotocol
-`struklabs.app.v1`. A signed-in account ticket is single-use, expires within 60
+`struklabs.app.v1`. A signed-in account ticket is single-use, expires within 300
 seconds and is bound to the desktop key. The ticket issuer is an injected trait;
 the default provider reports that account sign-in is unavailable. Auth uses
 `{v:1,seq:0,session:<all-zero-id>,type:"auth",role:"desktop",credential}`.
