@@ -1,6 +1,6 @@
 // Pure catalog logic of the Modules page: normalizing manifests, fuzzy search, filters,
 // sorting, facets and windowing. No framework imports so Node can test it directly.
-import type { ModuleView, LocaleKeys } from './modules.ts';
+import { builtInPage, type ModuleView, type LocaleKeys } from './modules.ts';
 
 export type Origin = 'official' | 'community';
 export type StatusFilter = 'all' | 'installed' | 'available' | 'updates';
@@ -68,7 +68,7 @@ export function toEntry(view: ModuleView, translate: Translate): CatalogEntry {
     id: m.id, view, name, description, category, tags, capabilities, author,
     origin: c.community ? 'community' : 'official',
     installed, enabled: status === 'installed', updateAvailable: installed && view.update_available,
-    compatible: !view.incompatibility && !m.planned,
+    compatible: !view.incompatibility && (!m.planned || builtInPage(m.id) !== null),
     fields: [
       { text: fold(name), weight: 4 },
       { text: fold(tags.join(' ')), weight: 3 },

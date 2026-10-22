@@ -216,3 +216,7 @@ test('page and detail strings exist in both languages and reference no missing k
   assert.equal(locales.tr['modules.badge_community'], 'Topluluk');
   assert.equal(locales.en['modules.badge_community'], 'Community');
 });
+test('a module that shipped as an app page counts as compatible; other planned ones do not', () => {
+  assert.equal(make({ id: 'training', manifest: { planned: true } }).compatible, true);
+  assert.equal(make({ id: 'automations', manifest: { planned: true } }).compatible, false);
+});

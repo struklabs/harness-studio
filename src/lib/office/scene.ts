@@ -25,7 +25,7 @@ export function validateScene(value: unknown): Scene {
     if (!record(r) || !fields(r,['id','name','color','x','y','width','height']) || !id(r.id) || ids.has(r.id) || !text(r.name) || !/^#[a-fA-F0-9]{6}$/.test(r.color) || !bounds(r)) return fail();
     ids.add(r.id);
   }
-  for (let i=0;i<s.rooms.length;i++) for (const b of s.rooms.slice(i+1)) { const a=s.rooms[i]; if (a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height) return fail(); }
+  for (let i=0;i<s.rooms.length;i++) for (const b of s.rooms.slice(i+1)) { const a=s.rooms[i]; if (a.x < b.x+b.width && b.x < a.x+a.width && a.y < b.y+b.height && b.y < a.y+a.height) throw new Error('office.room_overlap'); }
   for (const f of s.furniture) {
     if (!record(f) || !fields(f,['id','kind','x','y','width','height']) || !id(f.id) || ids.has(f.id) || !['desk','meeting','kitchen','plant','board'].includes(f.kind) || !bounds(f)) return fail();
     ids.add(f.id);
@@ -76,4 +76,8 @@ export function positions(scene: Scene, characters: Character[]) {
     const index=standing++;
     return {...character,x:desk?desk.x+desk.width/2:0.8+(index%Math.floor(w-1)),y:desk?Math.min(h-0.5,desk.y+1.45):h-0.65-Math.floor(index/Math.floor(w-1))*0.8};
   });
+}
+/** Locale key of a built-in room name ("Meeting Room" -> `office.room_meeting_room`). */
+export function roomKey(name: string): string {
+  return `office.room_${name.toLowerCase().replace(/\s+/g, '_')}`;
 }
