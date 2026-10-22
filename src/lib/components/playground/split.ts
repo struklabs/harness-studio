@@ -354,7 +354,7 @@ export async function streamInto(
     const request = await chatRequest(ep.baseUrl,
       { ...body, stream: true, stream_options: { include_usage: true } },
       { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...ep.headers }, local.signal);
-    if (request.routingFallback) notifyRoutingFallback(request.routingError, body.model);
+    if (request.routingFallback) notifyRoutingFallback(request.routingError, body.model, request.routingWithoutTools);
     const res = request.response;
     names.splice(0, names.length, ...((request.body.tools ?? []) as { function: { name: string } }[]).map(tool => tool.function.name));
     if (!res.ok) {

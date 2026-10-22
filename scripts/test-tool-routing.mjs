@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { toolIndex, selectedTools, routeTools, redactDetail, firstNotice } from '../src/lib/components/playground/toolRouting.ts';
+import { toolIndex, selectedTools, routeTools, redactDetail, firstNotice, hasAudioTurn } from '../src/lib/components/playground/toolRouting.ts';
 
 const tools = JSON.parse(readFileSync(new URL('../crates/harness-core/src/tools/builtin/llama_tools.json', import.meta.url))).map(t => t.definition);
 const signal = () => new AbortController().signal;
@@ -182,4 +182,25 @@ test('the routing fallback warning is shown once per model', () => {
   assert.equal(firstNotice(seen, 'tiny'), true);
   assert.equal(firstNotice(seen, 'tiny'), false);
   assert.equal(firstNotice(seen, 'other'), true);
+});
+
+test('failed discovery sends an audio turn without tools, so the clip is not drowned by schemas', async () => {
+  const clip = { role: 'user', content: [{ type: 'text', text: 'What does the speaker say?' }, { type: 'input_audio', input_audio: { data: 'UklGRg==', format: 'wav' } }] };
+  const result = await routeTools('local', { ...body, messages: [clip] }, {}, signal(), async () => Response.json({ choices: [{ message: { content: 'The speaker says hello.' } }] }));
+  assert.equal(result.body.tools, undefined);
+  assert.equal(result.fallback, true);
+  assert.equal(result.withoutTools, true);
+  const text = await routeTools('local', body, {}, signal(), async () => Response.json({ choices: [{ message: { content: 'not json' } }] }));
+  assert.deepEqual(text.body.tools, tools);
+  assert.equal(text.withoutTools, false);
+  const forced = await routeTools('local', { ...body, messages: [clip], tool_choice: 'required' }, {}, signal(), async () => Response.json({}));
+  assert.deepEqual(forced.body.tools, tools);
+  assert.equal(forced.withoutTools, false);
+});
+
+test('only the newest user message decides whether the turn is audio', () => {
+  const clip = { role: 'user', content: [{ type: 'input_audio', input_audio: { data: '', format: 'wav' } }] };
+  assert.equal(hasAudioTurn([clip, { role: 'assistant', content: 'ok' }]), true);
+  assert.equal(hasAudioTurn([clip, { role: 'user', content: 'and now text' }]), false);
+  assert.equal(hasAudioTurn([{ role: 'user', content: 'text' }]), false);
 });
