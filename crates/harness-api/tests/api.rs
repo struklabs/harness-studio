@@ -675,6 +675,20 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/tools/installed/{name}", &["delete"]),
         ("/tools/installed/{name}/enable", &["post"]),
         ("/tools/installed/{name}/disable", &["post"]),
+        ("/devices", &["get"]),
+        ("/devices/{id}", &["patch", "delete"]),
+        ("/devices/revoke-all", &["post"]),
+        ("/devices/audit", &["get"]),
+        ("/devices/roles", &["get"]),
+        ("/devices/suggest", &["get"]),
+        ("/devices/settings", &["get", "put"]),
+        ("/pairing/offers", &["get", "post"]),
+        ("/pairing/offers/{id}", &["delete"]),
+        ("/pairing/pending", &["get"]),
+        ("/pairing/pending/{id}/approve", &["post"]),
+        ("/pairing/pending/{id}/deny", &["post"]),
+        ("/pairing/connect", &["post"]),
+        ("/pairing/connect/poll", &["post"]),
         ("/skills", &["get"]),
         ("/skills/{name}", &["delete"]),
         ("/skills/{name}/enable", &["post"]),
@@ -2783,4 +2797,422 @@ async fn office_collections_validate_persist_and_enforce_scopes() {
         204
     );
     api.server.stop().await;
+}
+
+// --- Device pairing (offers, approval, scoped tokens, revocation, audit) against a real
+// Control API and a real gateway sharing one config directory.
+
+struct PairingRig {
+    api: Api,
+    gw_base: String,
+    _gateway: harness_gateway::GatewayServer,
+    /// The gateway status is process-wide: one pairing test at a time.
+    _serial: tokio::sync::MutexGuard<'static, ()>,
+}
+
+async fn pairing_rig() -> PairingRig {
+    static LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let serial = LOCK.lock().await;
+    let api = start().await;
+    let gateway = harness_gateway::GatewayServer::new();
+    let ctx = harness_gateway::GatewayContext {
+        registry: api.ctx.registry.clone(),
+        runtime: api.ctx.runtime.clone(),
+        gate: api.ctx.gate.clone(),
+        data_dir: api.dir.path().to_path_buf(),
+        downloads: None,
+    };
+    let settings = harness_core::gateway::GatewaySettings {
+        enabled: true,
+        port: 0,
+        ..Default::default()
+    };
+    let status = gateway.start_ephemeral(ctx, &settings).await.unwrap();
+    PairingRig {
+        gw_base: status.endpoint.unwrap().host_url,
+        api,
+        _gateway: gateway,
+        _serial: serial,
+    }
+}
+
+impl PairingRig {
+    async fn offer(&self, preset: &str, models: serde_json::Value) -> serde_json::Value {
+        let (status, body) = json(
+            self.api
+                .post(
+                    "/pairing/offers",
+                    json!({"role": "client", "preset": preset, "models": models}),
+                )
+                .await,
+        )
+        .await;
+        assert_eq!(status, 201, "{body}");
+        body
+    }
+
+    async fn claim(&self, code: &str, name: &str) -> (u16, serde_json::Value) {
+        json(
+            self.api
+                .http
+                .post(format!("{}/v1/harness/pair/claim", self.gw_base))
+                .json(&json!({
+                    "code": code, "device_name": name, "platform": "android",
+                    "client_nonce": "0123456789abcdef0123456789abcdef"
+                }))
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await
+    }
+
+    async fn poll(&self, id: &str, secret: &str) -> (u16, serde_json::Value) {
+        json(
+            self.api
+                .http
+                .get(format!("{}/v1/harness/pair/claim/{id}", self.gw_base))
+                .header("x-harness-pair-secret", secret)
+                .send()
+                .await
+                .unwrap(),
+        )
+        .await
+    }
+
+    /// Offer, claim, approval and token delivery; returns `(device id, token)`.
+    async fn pair(&self, preset: &str, name: &str) -> (String, String) {
+        let offer = self.offer(preset, json!([])).await;
+        let (status, started) = self
+            .claim(offer["offer"]["code"].as_str().unwrap(), name)
+            .await;
+        assert_eq!(status, 200, "{started}");
+        let claim_id = started["claim_id"].as_str().unwrap();
+        let (status, device) = json(
+            self.api
+                .post(&format!("/pairing/pending/{claim_id}/approve"), json!({}))
+                .await,
+        )
+        .await;
+        assert_eq!(status, 200, "{device}");
+        let (_, poll) = self
+            .poll(claim_id, started["poll_secret"].as_str().unwrap())
+            .await;
+        (
+            device["id"].as_str().unwrap().to_string(),
+            poll["token"].as_str().unwrap().to_string(),
+        )
+    }
+
+    async fn whoami(&self, token: &str) -> u16 {
+        self.api
+            .http
+            .get(format!("{}/v1/harness/whoami", self.gw_base))
+            .bearer_auth(token)
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .as_u16()
+    }
+}
+
+#[tokio::test]
+async fn pairing_flow_scopes_revocation_and_audit() {
+    let rig = pairing_rig().await;
+    let api = &rig.api;
+    let admin = api.token.clone();
+
+    // Only admin reaches the pairing and device routes.
+    let reader = control_api::TokenStore::at(&api.dir.path().join("config"))
+        .create("reader", &[control_api::Scope::Read])
+        .unwrap()
+        .token;
+    for path in ["/devices", "/devices/audit", "/pairing/pending"] {
+        assert_eq!(
+            api.send(Method::GET, path, &reader, None).await.status(),
+            403,
+            "{path}"
+        );
+        assert_eq!(
+            api.http.get(api.url(path)).send().await.unwrap().status(),
+            401
+        );
+    }
+    // Admin access needs an explicit acknowledgement.
+    let (status, body) = json(
+        api.post(
+            "/pairing/offers",
+            json!({"role": "client", "preset": "admin"}),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_error(&body, "pairing.admin_ack_required");
+
+    // The phone page is public, static and locked down.
+    let page = api
+        .http
+        .get(format!("{}/m", rig.gw_base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(page.status(), 200);
+    assert!(page.headers()["content-security-policy"]
+        .to_str()
+        .unwrap()
+        .contains("frame-ancestors 'none'"));
+    assert_eq!(page.headers()["cache-control"], "no-store");
+    assert!(page.text().await.unwrap().contains("Harness Studio"));
+
+    // Offer, wrong code, claim: nothing is issued before the owner approves.
+    let offer = rig.offer("chat_only", json!(["qwen*"])).await;
+    let code = offer["offer"]["code"].as_str().unwrap().to_string();
+    assert!(offer["pair_urls"][0]
+        .as_str()
+        .unwrap()
+        .ends_with(&format!("/m#code={code}")));
+    assert_eq!(offer["reachable_from_lan"], false);
+    let (status, body) = rig.claim("0000-0000", "Pixel").await;
+    assert_eq!(status, 403);
+    assert_eq!(body["error"]["code"], "pairing.invalid_code");
+    let (status, started) = rig.claim(&code, "Pixel 9").await;
+    assert_eq!(status, 200, "{started}");
+    let claim_id = started["claim_id"].as_str().unwrap();
+    let secret = started["poll_secret"].as_str().unwrap();
+    // The code works once.
+    assert_eq!(rig.claim(&code, "Other").await.0, 403);
+
+    let (_, poll) = rig.poll(claim_id, secret).await;
+    assert_eq!(poll["status"], "pending");
+    assert!(poll["token"].is_null());
+    assert_eq!(rig.poll(claim_id, "wrong-secret").await.0, 404);
+    let (_, pending) = json(api.get("/pairing/pending").await).await;
+    assert_eq!(pending[0]["name"], "Pixel 9");
+    assert_eq!(pending[0]["verification"], started["verification"]);
+    assert_eq!(json(api.get("/devices").await).await.1, json!([]));
+
+    // Approval hands the token over exactly once.
+    let (status, device) = json(
+        api.post(&format!("/pairing/pending/{claim_id}/approve"), json!({}))
+            .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{device}");
+    assert_eq!(device["preset"], "chat_only");
+    assert_eq!(device["models"], json!(["qwen*"]));
+    let device_id = device["id"].as_str().unwrap().to_string();
+    let (_, poll) = rig.poll(claim_id, secret).await;
+    assert_eq!(poll["status"], "approved");
+    let token = poll["token"].as_str().unwrap().to_string();
+    assert_eq!(poll["scopes"], json!(["inference"]));
+    assert_eq!(
+        rig.poll(claim_id, secret).await.0,
+        404,
+        "token is delivered once"
+    );
+
+    // The token is chat-scoped: gateway whoami works, other endpoints and the Control API do not.
+    assert_eq!(rig.whoami(&token).await, 200);
+    let emb = api
+        .http
+        .post(format!("{}/v1/embeddings", rig.gw_base))
+        .bearer_auth(&token)
+        .json(&json!({"model": "qwen3", "input": "x"}))
+        .send()
+        .await
+        .unwrap();
+    let (status, body) = json(emb).await;
+    assert_eq!(status, 403, "{body}");
+    assert_eq!(body["error"]["code"], "endpoint_not_allowed");
+    assert_eq!(
+        api.send(Method::GET, "/models", &token, None)
+            .await
+            .status(),
+        403
+    );
+    assert_eq!(
+        api.send(Method::GET, "/devices", &token, None)
+            .await
+            .status(),
+        403
+    );
+
+    // The device reports itself; the Devices list shows role, models, disk, reachability.
+    let report = api
+        .http
+        .post(format!("{}/v1/harness/device/report", rig.gw_base))
+        .bearer_auth(&token)
+        .json(&json!({
+            "models": ["qwen3-4b"], "engines": ["llama.cpp"], "components": ["chat_client"],
+            "disk_total_bytes": 512_000_000_000u64, "disk_free_bytes": 100_000_000_000u64,
+            "running_servers": 1, "queued_requests": 2, "address": "http://10.0.0.7:11435"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(report.status(), 204);
+    let (_, list) = json(api.get("/devices").await).await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list[0]["name"], "Pixel 9");
+    assert_eq!(list[0]["role"], "client");
+    assert_eq!(list[0]["reachability"], "online");
+    assert_eq!(list[0]["report"]["models"], json!(["qwen3-4b"]));
+    assert_eq!(list[0]["report"]["disk_free_bytes"], 100_000_000_000u64);
+    assert_eq!(list[0]["missing_components"], json!([]));
+    // A plain named token is not a device and cannot report.
+    let plain = control_api::TokenStore::at(&api.dir.path().join("config"))
+        .create("script", &[control_api::Scope::Inference])
+        .unwrap()
+        .token;
+    let denied = api
+        .http
+        .post(format!("{}/v1/harness/device/report", rig.gw_base))
+        .bearer_auth(&plain)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), 403);
+
+    // Changing the access applies to the live token.
+    let (status, body) = json(
+        api.send(
+            Method::PATCH,
+            &format!("/devices/{device_id}"),
+            &admin,
+            Some(json!({"preset": "gateway_models", "models": []})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["preset"], "gateway_models");
+    let emb = api
+        .http
+        .post(format!("{}/v1/embeddings", rig.gw_base))
+        .bearer_auth(&token)
+        .json(&json!({"model": "no-such-model", "input": "x"}))
+        .send()
+        .await
+        .unwrap();
+    assert_ne!(emb.status(), 403, "embeddings are open after the change");
+
+    // Revocation: the token dies at once, the device disappears, the audit log has it all.
+    let resp = api
+        .send(
+            Method::DELETE,
+            &format!("/devices/{device_id}"),
+            &admin,
+            None,
+        )
+        .await;
+    assert_eq!(resp.status(), 204);
+    assert_eq!(rig.whoami(&token).await, 401);
+    let (status, body) = json(
+        api.send(
+            Method::DELETE,
+            &format!("/devices/{device_id}"),
+            &admin,
+            None,
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_error(&body, "pairing.device_not_found");
+    let (_, log) = json(api.get("/devices/audit?limit=50").await).await;
+    let events: Vec<&str> = log
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["event"].as_str().unwrap())
+        .collect();
+    for wanted in [
+        "offer_created",
+        "claim_failed",
+        "claim_pending",
+        "approved",
+        "access_changed",
+        "revoked",
+    ] {
+        assert!(events.contains(&wanted), "{wanted} missing in {events:?}");
+    }
+}
+
+#[tokio::test]
+async fn pairing_revoke_all_deny_and_lockout() {
+    let rig = pairing_rig().await;
+    let api = &rig.api;
+    let (_, t1) = rig.pair("chat_only", "Phone").await;
+    let (_, t2) = rig.pair("gateway_models", "Laptop").await;
+    assert_eq!(rig.whoami(&t1).await, 200);
+    assert_eq!(rig.whoami(&t2).await, 200);
+
+    // A pending request and an open offer disappear with "revoke all" (lost-phone recovery).
+    let open = rig.offer("chat_only", json!([])).await;
+    let waiting_offer = rig.offer("chat_only", json!([])).await;
+    let (_, waiting) = rig
+        .claim(waiting_offer["offer"]["code"].as_str().unwrap(), "Stranger")
+        .await;
+    let (status, body) = json(api.post("/devices/revoke-all", json!({})).await).await;
+    assert_eq!(status, 200);
+    assert_eq!(body["revoked"], 2);
+    assert_eq!(rig.whoami(&t1).await, 401);
+    assert_eq!(rig.whoami(&t2).await, 401);
+    assert_eq!(json(api.get("/devices").await).await.1, json!([]));
+    assert_eq!(json(api.get("/pairing/pending").await).await.1, json!([]));
+    assert_eq!(
+        rig.claim(open["offer"]["code"].as_str().unwrap(), "X")
+            .await
+            .0,
+        403
+    );
+    let (status, _) = json(
+        api.post(
+            &format!(
+                "/pairing/pending/{}/approve",
+                waiting["claim_id"].as_str().unwrap()
+            ),
+            json!({}),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    // Deny: the device learns it and never gets a token.
+    let offer = rig.offer("chat_only", json!([])).await;
+    let (_, started) = rig
+        .claim(offer["offer"]["code"].as_str().unwrap(), "Denied One")
+        .await;
+    let id = started["claim_id"].as_str().unwrap();
+    let resp = api
+        .post(&format!("/pairing/pending/{id}/deny"), json!({}))
+        .await;
+    assert_eq!(resp.status(), 204);
+    let (_, poll) = rig.poll(id, started["poll_secret"].as_str().unwrap()).await;
+    assert_eq!(poll["status"], "denied");
+    assert!(poll["token"].is_null());
+
+    // Guessing codes locks out claims.
+    let mut last = 0;
+    for _ in 0..6 {
+        last = rig.claim("1111-1111", "Guesser").await.0;
+    }
+    assert_eq!(last, 429);
+
+    // Host suggestion: a tiny model fits, an absurd one does not and no device qualifies.
+    let (_, fits) = json(api.get("/devices/suggest?required_bytes=1").await).await;
+    assert_eq!(fits["fits_locally"], true);
+    let (_, big) = json(
+        api.get("/devices/suggest?required_bytes=1152921504606846976")
+            .await,
+    )
+    .await;
+    assert_eq!(big["fits_locally"], false);
+    assert_eq!(big["hosts"], json!([]));
+    let (_, roles) = json(api.get("/devices/roles").await).await;
+    assert_eq!(roles.as_array().unwrap().len(), 3);
 }

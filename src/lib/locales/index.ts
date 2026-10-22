@@ -23,6 +23,8 @@ import hub from './hub';
 import settings from './settings';
 import connections from './connections';
 import link from './link';
+import devices from './devices';
+import errorsPairing from './errorsPairing';
 import perf from './perf';
 import onboarding from './onboarding';
 import dashboard from './dashboard';
@@ -97,7 +99,7 @@ import mobile from './mobile';
 
 import modelCapabilities from './modelCapabilities';
 
-const namespaces = [office, github, jobs, browser, serverOperations, modelSetup, modelCapabilities, trust, permissions, workload, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, knowledge, errorsRag, errorsLink, cloud, errorsCloud, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, ocr, studios, lemonade, convert, training, mistralrs, pyhf, mlx, engines, audioCpp, automations, errorsAutomations, uninstall, projects, errorsProjects, setup, comfyui, errorsComfyui, mobile, taskRuns, errorsTaskRuns] as const;
+const namespaces = [office, github, jobs, browser, serverOperations, modelSetup, modelCapabilities, trust, permissions, workload, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, devices, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, knowledge, errorsRag, errorsLink, cloud, errorsCloud, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, ocr, studios, lemonade, convert, training, mistralrs, pyhf, mlx, engines, audioCpp, automations, errorsAutomations, uninstall, projects, errorsProjects, setup, comfyui, errorsComfyui, mobile, taskRuns, errorsTaskRuns, errorsPairing] as const;
 
 type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;
 export type Dictionary = UnionToIntersection<(typeof namespaces)[number]['tr']>;

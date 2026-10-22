@@ -38,3 +38,4 @@ otel-grpc = ["harness-core/otel-grpc"]
 harness-core = { path = "../harness-core", features = ["openapi", "otel", "test-support"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 tempfile = "3"
+harness-gateway = { path = "../harness-gateway" }

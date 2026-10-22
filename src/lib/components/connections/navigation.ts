@@ -1,4 +1,4 @@
-import { Cloud, Link2, Network, Plug, BookOpen, Code, Server, Download, Activity, FlaskConical, Route, Wrench } from '@lucide/svelte';
+import { Cloud, Link2, Network, Plug, BookOpen, Code, Server, Download, Activity, FlaskConical, Route, Wrench, MonitorSmartphone } from '@lucide/svelte';
 import type { SectionGroup } from '../common/sections';
 export const CONNECTION_GROUPS: SectionGroup[] = [
   { label: 'conn.tab_clients', pages: [
@@ -9,6 +9,9 @@ export const CONNECTION_GROUPS: SectionGroup[] = [
   ] },
   { label: 'link.group', pages: [
     { id: 'harness-link', label: 'link.page', icon: Link2 },
+  ] },
+  { label: 'devices.group', pages: [
+    { id: 'devices', label: 'devices.page', icon: MonitorSmartphone },
   ] },
   { label: 'cloud.group', pages: [
     { id: 'cloud-providers', label: 'cloud.page', icon: Cloud },

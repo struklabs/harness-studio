@@ -11,6 +11,7 @@
   import EndpointList from './connections/EndpointList.svelte';
   import HarnessMcp from './connections/HarnessMcp.svelte';
   import HarnessLinks from './connections/HarnessLinks.svelte';
+  import DevicesPage from './connections/DevicesPage.svelte';
   import CloudProviders from './connections/CloudProviders.svelte';
   import McpServers from './connections/McpServers.svelte';
   import { fetchErrorText, fetchWithTimeout } from './connections/net';
@@ -155,6 +156,7 @@
         {/if}
       </div>
       <div hidden={active !== 'harness-link'}>{#if visited['harness-link']}<HarnessLinks />{/if}</div>
+      <div hidden={active !== 'devices'}>{#if visited.devices}<DevicesPage />{/if}</div>
       <div hidden={active !== 'cloud-providers'}>{#if visited['cloud-providers']}<CloudProviders />{/if}</div>
       <div hidden={active !== 'harness-mcp'}>{#if visited['harness-mcp']}<HarnessMcp />{/if}</div>
       <div hidden={!mcpPage}>
