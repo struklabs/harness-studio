@@ -234,8 +234,10 @@
       <span class="inline-flex items-center gap-1 text-warning" title={t('audio_cpp.needs_engine')}><Info class="size-3" />{!app.settings?.audio_cpp_enabled ? t('audio_cpp.needs_engine') : engineInstall.installed('audio.cpp') ? t('process.experimental') : t('speak.engine_missing', { family: 'audio.cpp' })}</span>
     {:else if compat.status === 'needs_runtime'}
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
-      <span class="inline-flex items-center gap-1 text-info" title={t(sd ? 'hub.compat_needs_sd_title' : 'hub.compat_needs_whisper_title')}>
-        <Info class="size-3" />{t(sd ? 'hub.compat_needs_sd' : 'hub.compat_needs_whisper')}
+      {@const whisper = compat.runtime === 'whisper.cpp'}
+      <!-- Other engines (sherpa-onnx, transcribe.cpp, CrispASR...) are named as they are, not as whisper.cpp. -->
+      <span class="inline-flex items-center gap-1 text-info" title={sd ? t('hub.compat_needs_sd_title') : whisper ? t('hub.compat_needs_whisper_title') : t('hub.compat_needs_engine_title', { runtime: compat.runtime })}>
+        <Info class="size-3" />{sd ? t('hub.compat_needs_sd') : whisper ? t('hub.compat_needs_whisper') : t('hub.compat_needs_engine', { runtime: compat.runtime })}
       </span>
     {/if}
     {#if decision}

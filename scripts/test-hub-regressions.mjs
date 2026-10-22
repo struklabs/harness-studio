@@ -292,3 +292,9 @@ test('a safetensors chat repo on the Python engine is told apart and weighed aga
   assert.match(drawer, /\{#if convertible && repoId && !pythonChat\}/);
   assert.match(drawer, /\{#if convertible && repoId && pythonChat\}\{@render convertTools\(repoId\)\}\{\/if\}/);
 });
+
+test('a card names the engine a repo needs instead of defaulting to whisper.cpp', () => {
+  const card = readFileSync(new URL('../src/lib/components/hub/RepoCard.svelte', import.meta.url), 'utf8');
+  assert.match(card, /whisper = compat\.runtime === 'whisper\.cpp'/);
+  assert.match(card, /t\('hub\.compat_needs_engine', \{ runtime: compat\.runtime \}\)/);
+});
