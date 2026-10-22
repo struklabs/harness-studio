@@ -1,5 +1,8 @@
 <script lang="ts">
   import { fixed } from '#lib/format.js';
+  import GenerationField from './GenerationField.svelte';
+  import QualityPresets from './QualityPresets.svelte';
+  import { generationError } from './generationError';
   import { onDestroy, onMount } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -83,7 +86,7 @@
       });
       if (qa) { answer = result.answer; score = typeof result.score === 'number' ? result.score : null; }
       else text = result.markdown;
-    } catch (e) { if (!signal.aborted) error = engineInstall.autoFailureText(e) ?? errorText(e); }
+    } catch (e) { if (!signal.aborted) error = engineInstall.autoFailureText(e) ?? generationError(e); }
     finally { busy = false; controller = undefined; }
   }
   async function copy() {
@@ -96,13 +99,18 @@
   <p class="text-sm text-muted-foreground">{t('ocr.hint')}</p>
   {#if !app.gatewayRunning}<p role="status">{t('ocr.need_gateway')}</p>{/if}
   {#if !model}<p role="status">{t('ocr.need_model')}</p>{/if}
+  <h3 class="text-sm font-semibold">{t('gen.basic')}</h3>
+  <QualityPresets {busy} />
+  <GenerationField label={t('ocr.pick')} help="gen.document">
   <div role="region" aria-label={t('ocr.drop')} class="rounded-lg border border-dashed border-border p-6"
     ondragover={(e) => e.preventDefault()} ondrop={(e) => { e.preventDefault(); void pick(e.dataTransfer?.files[0]); }}>
     <p class="mb-3 text-sm">{filename || t('ocr.drop')}</p>
     <input bind:this={input} type="file" class="sr-only" accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
       onchange={(e) => { void pick(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} disabled={busy} aria-label={t('ocr.pick')} />
     <Button variant="outline" disabled={busy || picking} onclick={() => input.click()}>{t('ocr.pick')}</Button>
+    {#if filename}<Button variant="ghost" disabled={busy || picking} onclick={() => { selection++; documentData = ''; filename = ''; text = ''; answer = ''; score = null; error = ''; }}>{t('gen.remove_file')}</Button>{/if}
   </div>
+  </GenerationField>
   <Button disabled={busy || picking || !documentData || !model || !app.gatewayRunning} onclick={() => run(false)}>{t(busy ? 'ocr.busy' : 'ocr.read')}</Button>
   {#if busy && engineInstall.autoFamily}
     {@const family = engineInstall.autoFamily}
@@ -115,8 +123,11 @@
     <Textarea id="ocr-text" value={text} readonly rows={12} class="font-mono" />
     <Button variant="outline" onclick={copy}>{t('ocr.copy')}</Button>
   {/if}
-  <label for="ocr-question" class="text-sm font-semibold">{t('ocr.question')}</label>
+<details class="rounded-md border border-border p-3"><summary class="mb-3 cursor-pointer text-sm font-semibold">{t('gen.advanced')}</summary><div class="space-y-3">
+  <GenerationField id="ocr-question" label={t('ocr.question')} help="gen.question">
   <Textarea id="ocr-question" bind:value={question} disabled={busy} rows={2} />
+  </GenerationField>
   <Button disabled={busy || picking || !documentData || !model || !question.trim() || !app.gatewayRunning} onclick={() => run(true)}>{t('ocr.ask')}</Button>
+  </div></details>
   {#if answer}<div role="status"><h3 class="text-sm font-semibold">{t('ocr.answer')}</h3><p class="whitespace-pre-wrap">{answer}</p>{#if score !== null}<p>{t('pl.score')}: {fixed(score, 3)}</p>{/if}</div>{/if}
 </div>

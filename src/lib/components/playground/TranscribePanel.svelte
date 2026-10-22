@@ -1,5 +1,8 @@
 <script lang="ts">
-  import Field from '../dashboard/parts/Field.svelte';
+  import QualityPresets from './QualityPresets.svelte';
+  import { generationError } from './generationError';
+  import GenerationField from './GenerationField.svelte';
+  import Field from './GenerationField.svelte';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { t, locale } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
@@ -218,8 +221,10 @@
 
   <section class="flex flex-col gap-3" aria-labelledby="asr-input">
     <h3 id="asr-input" class="sr-only">{t('asr.title')}</h3>
-    <div class="flex flex-col gap-1.5">
-      <Label for="asr-model" class="text-sm font-semibold text-foreground">{t('asr.model_label')}</Label>
+    <h3 class="text-sm font-semibold">{t('gen.basic')}</h3>
+    <QualityPresets {busy} />
+    <GenerationField label={t('asr.model_label')} id="asr-model" help="gen.model">
+
       <select
         id="asr-model"
         bind:value={speech.model}
@@ -257,42 +262,42 @@
           {/each}
         {/if}
       </select>
-    </div>
-    <Field label={t('asr.file_label')} id="asr-file" note={t('asr.file_desc')}>
+    </GenerationField>
+    <Field label={t('asr.file_label')} id="asr-file" help="gen.audio_file" note={t('asr.file_desc')}>
       <AudioFilePicker id="asr-file" label={t('asr.file_label')} accept="audio/*,video/webm,video/mp4,.wav,.mp3,.flac,.ogg,.opus,.m4a,.webm" bind:file bind:recState {busy} onRecorded={() => { result = null; error = ''; needFamily = null; }} />
     </Field>
     <AdvancedOnly collapsible>
     <div class="grid gap-3 sm:grid-cols-3">
-      <div class="flex flex-col gap-1.5">
-        <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
+      <GenerationField label={t('asr.task_label')} id="asr-task" help="gen.asr_task">
+
         <select id="asr-task" bind:value={task} disabled={busy || onlyTranscribes || crispNoTranslate} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="transcriptions">{t('asr.task_transcribe')}</option>
           {#if !crispNoTranslate}<option value="translations">{t('asr.task_translate')}</option>{/if}
         </select>
         {#if onlyTranscribes || crispNoTranslate}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <Label for="asr-format" class="text-sm font-semibold text-foreground">{t('asr.format_label')}</Label>
+      </GenerationField>
+      <GenerationField label={t('asr.format_label')} id="asr-format" help="gen.asr_format">
+
         <select id="asr-format" bind:value={format} disabled={busy || !!engineChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="json">{t('asr.format_text')}</option>
           <option value="srt">SRT</option>
           <option value="vtt">WebVTT</option>
         </select>
         {#if engineChosen}<span class="text-xs text-muted-foreground">{t('sasr.text_only')}</span>{/if}
-      </div>
+      </GenerationField>
       {#if !ctcChosen}
-      <div class="flex flex-col gap-1.5">
-        <Label for="asr-lang" class="text-sm font-semibold text-foreground">{t('asr.language_label')}</Label>
+      <GenerationField label={t('asr.language_label')} id="asr-lang" help="gen.language">
+
         <Input id="asr-lang" bind:value={language} placeholder={t('asr.language_placeholder')} disabled={busy} />
         <span class="text-xs text-muted-foreground">{t('asr.language_hint')}</span>
-      </div>
+      </GenerationField>
       {/if}
     </div>
     {#if !ctcChosen && !engineChosen}
-      <div class="flex flex-col gap-1.5">
-        <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
+      <GenerationField label={t('asr.prompt_label')} id="asr-prompt" help="gen.asr_prompt">
+
         <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
-      </div>
+      </GenerationField>
     {/if}
     </AdvancedOnly>
     <div class="flex flex-wrap items-center gap-3">

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import QualityPresets from './QualityPresets.svelte';
+  import { generationError } from './generationError';
+  import GenerationField from './GenerationField.svelte';
   import { t, locale } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
@@ -11,7 +14,6 @@
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { engineLabel, familyFromError } from '#lib/engines.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
-  import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
@@ -67,7 +69,7 @@
   let runBlocker = $derived(ttsRunBlocker(busy, runtimeMissing, app.gatewayRunning, tts.models.length, text));
   // A clone request needs its sample and the permission box; without a sample the model speaks in its own voice.
   let cloneActive = $derived(cloning && cloneFile !== null);
-  let canRun = $derived(runBlocker === null && !engineOff && (!cloneActive || cloneStop === null));
+  let canRun = $derived((!supportsSpeed || (Number.isFinite(tts.speed) && tts.speed >= 0.5 && tts.speed <= 2)) && runBlocker === null && !engineOff && (!cloneActive || cloneStop === null));
   let runHint = $derived(
     runBlocker === 'runtime' ? t('speak.run_need_runtime', { family: missingFamily ?? 'sherpa-onnx' })
       : runBlocker === 'gateway' ? t('speak.run_need_gateway')
@@ -123,7 +125,7 @@
         needFamily = familyFromError(msg);
         const parsed = parseError(rawError(e));
         missingHelper = parsed?.key === 'tts.crispasr_helper_missing' ? String(parsed.params.helper ?? '') : null;
-        error = needFamily ? '' : localizeError(e);
+        error = needFamily ? '' : generationError(e);
       }
     } finally {
       if (controller === c) {
@@ -234,9 +236,11 @@
   {/if}
 
   <section class="flex flex-col gap-3" aria-labelledby="tts-title">
+    <h4 class="text-sm font-semibold">{t('gen.basic')}</h4>
+    <QualityPresets {busy} />
     <div class="grid gap-3 sm:grid-cols-3">
-      <div class="flex flex-col gap-1.5">
-        <Label for="tts-model" class="text-sm font-semibold text-foreground">{t('speak.model_label')}</Label>
+      <GenerationField label={t('speak.model_label')} id="tts-model" help="gen.model">
+
         <select
           id="tts-model"
           bind:value={tts.model}
@@ -247,9 +251,9 @@
             <option value={m.name}>{m.name}</option>
           {/each}
         </select>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <Label for="tts-voice" class="text-sm font-semibold text-foreground">{t('speak.voice_label')}</Label>
+      </GenerationField>
+      <GenerationField label={t('speak.voice_label')} id="tts-voice" help="gen.voice">
+
         <select
           id="tts-voice"
           bind:value={tts.voice}
@@ -261,22 +265,22 @@
             <option value={v.id}>{v.id}{v.language ? ` (${v.language})` : ''}</option>
           {/each}
         </select>
-      </div>
+      </GenerationField>
       {#if supportsSpeed}
-        <div class="flex flex-col gap-1.5">
-          <Label for="tts-speed" class="text-sm font-semibold text-foreground">{t('speak.speed_label')}</Label>
+        <GenerationField label={t('speak.speed_label')} id="tts-speed" help="gen.speed">
+
           <div class="flex h-9 items-center gap-2">
             <input id="tts-speed" type="range" min="0.5" max="2" step="0.05" bind:value={tts.speed} disabled={busy} class="min-w-0 flex-1" />
             <span class="font-num w-10 text-right text-xs text-muted-foreground">{fixed(tts.speed, 2)}×</span>
           </div>
-        </div>
+        </GenerationField>
       {/if}
     </div>
     {#if cloning}
       <VoiceCloneSection bind:file={cloneFile} bind:consent={cloneConsent} bind:text={cloneText} needsText={cloneTextNeeded} {busy} {engineOff} />
     {/if}
-    <div class="flex flex-col gap-1.5">
-      <Label for="tts-text" class="text-sm font-semibold text-foreground">{t('speak.text_label')}</Label>
+    <GenerationField label={t('speak.text_label')} id="tts-text" help="gen.speech_text">
+
       <Textarea
         id="tts-text"
         bind:value={text}
@@ -286,7 +290,7 @@
         disabled={busy}
       />
       <span class="font-num self-end text-xs text-muted-foreground">{t('speak.chars', { count: text.length, max: MAX_SPEECH_CHARS })}</span>
-    </div>
+    </GenerationField>
     <div class="flex flex-wrap items-center gap-3">
       <Button size="sm" onclick={run} disabled={!canRun} aria-describedby={runHint ? 'tts-run-hint' : undefined}>
         {#if busy}<LoaderCircle class="animate-spin" />{:else}<Volume2 />{/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GenerationField from './GenerationField.svelte';
   // Draws an inpainting mask over the start image: white strokes are redrawn, the rest is kept.
   // The mask leaves as a PNG of the start image's own pixel size (black and white), which is
   // what the gateway wants (`mask` of /v1/images/edits).
@@ -120,10 +121,9 @@
     {/if}
   </div>
   <div class="flex flex-wrap items-center gap-3">
-    <label class="flex items-center gap-2 text-xs text-foreground">
-      {t('img.mask_brush')}
-      <input type="range" min="1" max="40" bind:value={brush} class="w-32" />
-    </label>
+    <GenerationField id="mask-brush" label={t('img.mask_brush')} help="gen.brush">
+      <input id="mask-brush" type="range" min="1" max="40" bind:value={brush} class="w-32" />
+    </GenerationField>
     <Button variant={erasing ? 'secondary' : 'outline'} size="sm" aria-pressed={erasing} onclick={() => (erasing = !erasing)}>
       <Eraser />{t('img.mask_erase')}
     </Button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GenerationField from '../playground/GenerationField.svelte';
   import { untrack } from 'svelte';
   import { FolderOpen, Folder, TriangleAlert, CircleX, ShieldAlert } from '@lucide/svelte';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -89,15 +90,14 @@
 </script>
 
 <div class="flex flex-col gap-3">
-  <div class="flex flex-col gap-1 text-sm">
-    <label for="training-dataset">{t('training.dataset_path')}</label>
+  <GenerationField id="training-dataset" label={t('training.dataset_path')} help="gen.dataset">
     <div class="flex gap-2">
       <Input id="training-dataset" bind:value={path} placeholder={t('training.dataset_placeholder')} onchange={check} onkeydown={(e) => e.key === 'Enter' && check()} />
       <Button type="button" variant="outline" onclick={pick}><FolderOpen class="size-4" aria-hidden="true" />{t('training.choose_file')}</Button>
       <Button type="button" variant="outline" onclick={pickFolder}><Folder class="size-4" aria-hidden="true" />{t('training.choose_folder')}</Button>
     </div>
     <p class="text-xs text-muted-foreground">{t('training.dataset_hint')}</p>
-  </div>
+  </GenerationField>
 
   {#if checking}
     <p class="text-xs text-muted-foreground">{t('training.dataset_checking')}</p>

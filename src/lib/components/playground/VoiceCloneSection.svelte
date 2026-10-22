@@ -1,9 +1,9 @@
 <script lang="ts">
+  import GenerationField from './GenerationField.svelte';
   // "Clone a Voice": a short voice sample (uploaded or recorded), the permission box and an
   // optional transcript. Shown only for models that can clone; the sample is sent with the
   // request and not kept.
   import { t } from '#lib/i18n.svelte.js';
-  import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import AudioFilePicker from './AudioFilePicker.svelte';
   import VoiceConsentCheckbox from '../common/VoiceConsentCheckbox.svelte';
@@ -30,8 +30,8 @@
       <Button type="button" variant="outline" size="xs" onclick={() => security.openSettings('runtime-installed', t('audio_cpp.experimental'))}>{t('audio_cpp.enable')}</Button>
     </div>
   {/if}
-  <div class="flex flex-col gap-1.5">
-    <Label for="tts-clone-file" class="text-sm font-semibold text-foreground">{t('voice.sample_label')}</Label>
+  <GenerationField label={t('voice.sample_label')} id="tts-clone-file" help="gen.clone_sample">
+
     <AudioFilePicker
       id="tts-clone-file"
       label={t('voice.sample_label')}
@@ -42,10 +42,9 @@
       sampleRate={SAMPLE_RATE}
     />
     {#if tooBig}<p class="text-xs text-destructive" role="alert">{t('voice.too_big', { size: formatBytes(MAX_SAMPLE_BYTES) })}</p>{/if}
-  </div>
-  <div class="flex flex-col gap-1.5">
-    <Label for="tts-clone-text" class="text-sm font-semibold text-foreground">{needsText ? t('voice.text_label_required') : t('voice.text_label')}</Label>
+  </GenerationField>
+  <GenerationField label={needsText ? t('voice.text_label_required') : t('voice.text_label')} id="tts-clone-text" help="gen.clone_text">
     <Textarea id="tts-clone-text" bind:value={text} rows={2} maxlength={1000} placeholder={t('voice.text_placeholder')} disabled={busy} required={needsText} aria-required={needsText} />
-  </div>
+  </GenerationField>
   <VoiceConsentCheckbox id="tts-clone-consent" bind:checked={consent} disabled={busy} />
 </section>

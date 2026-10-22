@@ -174,6 +174,10 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 
 ## Generate Images
 
+Every generation field has a short hint and an information button. Focus the information button and press Enter or Space to read its explanation, trade-offs and suggested values; Escape closes it. **Basic** holds the main inputs; **Advanced** expands the tuning controls.
+
+**Fast**, **Balanced**, and **Quality** presets fill in supported steps, sizes and video frame counts for the selected engine and model family. You can edit them afterwards. The time line uses a matching measured run when one is available; otherwise it says the estimate is unavailable. Speech, transcription and document engines without quality controls explain that quality depends on the model instead.
+
 Safetensors chat and vision models that run on the Python engine appear in the model picker like any other chat model, with **Python (Transformers)** shown as their engine. Chats stream, tool calls work when the model's chat template supports tools, and vision models accept pictures. The first message loads the model, which takes a while on a CPU.
 
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
@@ -196,7 +200,7 @@ If you already run [ComfyUI](https://github.com/comfyanonymous/ComfyUI), the **I
    - **Text to Image (Built-In)** is a simple checkpoint, KSampler, and Save Image graph. Choose its **Checkpoint**, or leave **First Checkpoint**.
    - **Saved Workflows** are the ones you saved in ComfyUI.
    - **Templates** are ComfyUI's own image templates and those of your custom nodes. Partner-API (paid) templates are not listed.
-4. Write a **Prompt** and press **Generate in ComfyUI**. Optionally set a **Negative Prompt**, **Size**, **Steps**, **Seed**, or **CFG Scale** (under **Advanced Settings** in Simple mode); empty fields keep the workflow's own values, and an empty **Seed** is random. While it runs, the queue position and the sampler steps are shown, and **Cancel** removes the run from ComfyUI's queue or stops it.
+4. Write a **Prompt** and press **Generate in ComfyUI**. Optionally set a **Negative Prompt**, **Size**, **Steps**, **Seed**, or **CFG Scale** (under **Advanced**); empty fields keep the workflow's own values, and an empty **Seed** is random. While it runs, the queue position and the sampler steps are shown, and **Cancel** removes the run from ComfyUI's queue or stops it.
 
 While a project with a folder is active (see [Projects and Outputs](#projects-and-outputs)), the pictures are saved to its outputs; otherwise they go to `outputs/comfyui` in the Harness data folder. They are listed under **ComfyUI Outputs** with **Open** and **Show in Folder**. **Remove from List (Keep File)** leaves the file on disk.
 
@@ -263,8 +267,7 @@ word positions to the question-answering model.
 
 Video models appear in Playground's **Tasks** tab and **Video** studio. Select a diffusers LTX-Video or
 CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
-Python pipelines offer MP4 or WebM; sd.cpp video GGUFs offer WebM, animated WebP or AVI.
-Set resolution, frames and steps before running. The progress line shows percent, job stage and elapsed time;
+Choose resolution, frames and steps before running. Python diffusers supports MP4 and WebM; stable-diffusion.cpp supports WebM, animated WebP and AVI, with MP4 disabled and an explanation. The frame count and frame rate show the effective playback duration live (encoded frames divided by fps). The progress line shows percent, job stage and elapsed time;
 Cancel stops the job at the next step. MP4, WebM and WebP preview in the app; AVI has no web player, so save the file. Finished clips are saved to the active project's
 `outputs` folder when the project has a folder.
 
