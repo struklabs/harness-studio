@@ -27701,6 +27701,13 @@
               "string",
               "null"
             ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Model identity for taskflow runs, when one has been selected."
           }
         }
       },
