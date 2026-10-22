@@ -118,9 +118,9 @@ async fn byok_setup_discovery_headers_prices_and_errors() {
     assert_eq!(probe.model_count, 1);
     assert_eq!(
         (
-            probe.models[0].vision,
-            probe.models[0].reasoning,
-            probe.models[0].context_length
+            probe.models[0].info.vision,
+            probe.models[0].info.reasoning,
+            probe.models[0].info.context_length
         ),
         (Some(true), Some(true), Some(200000))
     );
