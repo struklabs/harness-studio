@@ -463,6 +463,15 @@ async fn run(
     // Remote Harness and cloud models skip every local-model step (compat, reasoning,
     // tool diagnosis): the other side handles the request as sent.
     let external = remote.is_some() || cloud.is_some();
+    if !external
+        && api == Api::Chat
+        && def.base.local_path().is_some_and(|path| {
+            harness_core::engine::server_for_model(path)
+                .is_some_and(|engine| engine.family() == harness_core::engine::LLAMA_CPP)
+        })
+    {
+        body = crate::video_input::prepare(body).await?;
+    }
     // Each provider kind serves the protocols it speaks (chat everywhere; Responses, Messages
     // and embeddings where the provider has them).
     let cloud_kind = cloud.and_then(|_| harness_core::cloud::kind_of(&def.id));

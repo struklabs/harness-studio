@@ -260,9 +260,10 @@ Tesseract executable.
 
 ## Video Generation and Questions
 
-Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
+Video models appear in Playground's **Tasks** tab and **Video** studio. Select a diffusers LTX-Video or
 CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
-Choose MP4, WebM, animated WebP or AVI, resolution, frames and steps before running. The progress line shows percent, job stage and elapsed time;
+Python pipelines offer MP4 or WebM; sd.cpp video GGUFs offer WebM, animated WebP or AVI.
+Set resolution, frames and steps before running. The progress line shows percent, job stage and elapsed time;
 Cancel stops the job at the next step. MP4, WebM and WebP preview in the app; AVI has no web player, so save the file. Finished clips are saved to the active project's
 `outputs` folder when the project has a folder.
 
@@ -274,8 +275,16 @@ encoder, tokenizer, transformer and VAE.
 
 Select a video-capable transformers model such as `HuggingFaceTB/SmolVLM2-256M-Video-Instruct`
 to ask a question about an MP4 or WebM file. Clips must be at most 32 MiB. Harness samples eight
-frames per video, so brief events between sampled frames may be missed. Video questions return
+frames per video, so brief events between sampled frames may be missed. Python video questions return
 one complete answer; streaming is not currently supported.
+
+GGUF vision models such as Qwen2.5-VL with a matching vision projector also appear in
+**Tasks** and the **Video** studio. Select the model, attach a clip and ask a question.
+For these llama.cpp models, install `ffmpeg` and its sibling `ffprobe` on PATH. The gateway
+samples eight chronological frames across the clip and sends them as images with timestamps.
+Clips need a readable duration of at most 10 minutes; frames retain their aspect ratio and
+are resized to fit 512 × 512 pixels. Sound is not sent to the model. Missing model engines
+are installed automatically when you run the request.
 
 The same features are available through `POST /v1/videos` (poll the returned job ID, fetch
 `/v1/videos/{id}/content`, or delete the job to cancel) and `POST /v1/chat/completions`.

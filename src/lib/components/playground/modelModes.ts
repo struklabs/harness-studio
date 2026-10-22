@@ -1,7 +1,7 @@
 import type { LocalModel, ModelDefinition, PlaygroundMode, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
 import { DIFFUSERS_IMAGE_TASKS } from './image';
-import { fileVideoTask } from './video';
+import { definitionVideoTask } from './video';
 import { readsDocuments } from './documentModels';
 
 /** The library file a definition points at, when it is in `files`. */
@@ -30,7 +30,7 @@ export function definitionsForMode(definitions: ModelDefinition[], mode: Playgro
   const rows = definitions.map(def => ({ def, mode: definitionMode(def, files), chat: definitionMode(def, files) === 'chat' }));
   // sd.cpp's video GGUFs (Wan...) draw single frames in the Image tab and run video jobs from
   // the Tasks tab and the Video studio.
-  const video = (def: ModelDefinition) => mode === 'pipeline' && definitionMode(def, files) === 'image' && !!fileVideoTask(definitionFile(def, files));
+  const video = (def: ModelDefinition) => mode === 'pipeline' && !!definitionVideoTask(def, definitionFile(def, files), files);
   return (mode === 'chat' ? chatModelsOnly(rows) : rows.filter(row => row.mode === mode || video(row.def))).map(row => row.def);
 }
 

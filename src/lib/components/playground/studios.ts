@@ -24,7 +24,7 @@ export interface StudioSpec {
 export const STUDIOS: StudioSpec[] = [
   { id: 'image', label: 'studio.image', desc: 'studio.image_desc', mode: 'image', api: '/v1/images/generations', streaming: false, memoryFactor: 1.3 },
   { id: 'audio', label: 'studio.audio', desc: 'studio.audio_desc', mode: 'transcription', api: '/v1/audio/transcriptions, /v1/audio/speech', streaming: true, memoryFactor: 1.2 },
-  { id: 'video', label: 'studio.video', desc: 'studio.video_desc', mode: 'pipeline', api: '/v1/videos', streaming: false, memoryFactor: 1.6 },
+  { id: 'video', label: 'studio.video', desc: 'studio.video_desc', mode: 'pipeline', api: '/v1/videos, /v1/chat/completions', streaming: false, memoryFactor: 1.6 },
   { id: 'voice', label: 'studio.voice', desc: 'studio.voice_desc', mode: 'transcription', api: 'local audio.cpp / mlx-audio', streaming: false, memoryFactor: 1.25 },
   { id: 'document', label: 'studio.document', desc: 'studio.document_desc', mode: 'ocr', api: '/v1/chat/completions', streaming: false, memoryFactor: 1.25 },
   { id: 'coding', label: 'studio.coding', desc: 'studio.coding_desc', mode: 'chat', api: '/v1/chat/completions', streaming: true, memoryFactor: 1.15 },
