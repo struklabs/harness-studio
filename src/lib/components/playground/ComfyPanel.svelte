@@ -1,11 +1,16 @@
 <script lang="ts">
+  import AdvancedOnly from '../common/AdvancedOnly.svelte';
+  import GenerationField from './GenerationField.svelte';
   // Image tab, ComfyUI source: runs text-to-image workflows on the user's own ComfyUI. The
   // prompt and the size/steps/seed/CFG fields are the same ones the built-in engine uses.
   import { onMount } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
-  import Field from '../dashboard/parts/Field.svelte';
-  import AdvancedOnly from '../common/AdvancedOnly.svelte';
+  import Field from './GenerationField.svelte';
+  import QualityPresets from './QualityPresets.svelte';
+  import HelpPopover from '../common/HelpPopover.svelte';
+  import { generationPreset, imageParameterErrors, type Quality } from './generationParameters';
+  import { generationError } from './generationError';
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
   import { errorCode } from '#lib/errors.js';
@@ -49,7 +54,11 @@
   let source = $derived(parseSourceKey(form.comfyWorkflow));
   let percent = $derived(progressPercent(progress));
   let sizeError = $derived(form.size.trim() !== '' && !parseComfySize(form.size));
-  let canRun = $derived(!busy && !!status && form.prompt.trim() !== '' && !sizeError);
+  let validation = $derived(imageParameterErrors({ ...form, count: 1 }, 'comfyui'));
+  let invalid = $derived(sizeError || Object.values(validation).some(Boolean));
+  let canRun = $derived(!busy && !!status && form.prompt.trim() !== '' && !invalid);
+  function preset(quality: Quality) { const p = generationPreset('image', 'comfyui', quality, form.comfyCheckpoint); form.steps = String(p.steps); form.size = p.size; }
+
   let deviceText = $derived(status?.devices.map((d) => d.kind || d.name).filter(Boolean).join(', ') ?? '');
 
   async function detect(quiet = false) {
@@ -118,7 +127,7 @@
       toast.success(project ? t('comfy.saved_project', { count: result.images.length, project: project.name }) : t('comfy.saved', { count: result.images.length }));
     } catch (e) {
       if (errorCode(e) === 'comfyui.cancelled') toast.info(t('comfy.cancelled'));
-      else error = localizeError(e);
+      else error = generationError(e);
     } finally {
       off?.();
       busy = false;
@@ -213,11 +222,12 @@
   </section>
 
   <section class="flex flex-col gap-3" aria-labelledby="comfy-input">
-    <h3 id="comfy-input" class="sr-only">{t('comfy.title')}</h3>
+    <h3 id="comfy-input" class="text-sm font-semibold">{t('gen.basic')}</h3>
+    <QualityPresets onselect={preset} {busy} />
     <div class="grid gap-3 sm:grid-cols-2">
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center gap-1">
-          <Label for="comfy-workflow" class="text-sm font-semibold text-foreground">{t('comfy.workflow')}</Label>
+          <Label for="comfy-workflow" class="text-sm font-semibold text-foreground">{t('comfy.workflow')}</Label><HelpPopover label={t('comfy.workflow')} text={t('gen.workflow')} info />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -252,10 +262,10 @@
             </optgroup>
           {/each}
         </select>
-        <span class="text-xs text-muted-foreground">{t(source.kind === 'builtin' ? 'comfy.builtin_hint' : 'comfy.workflow_hint')}</span>
+        <p class="text-xs text-muted-foreground">{t('gen.workflow')}</p>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <Label for="comfy-checkpoint" class="text-sm font-semibold text-foreground">{t('comfy.checkpoint')}</Label>
+      <GenerationField label={t('comfy.checkpoint')} id="comfy-checkpoint" help="gen.checkpoint">
+
         <select
           id="comfy-checkpoint"
           bind:value={form.comfyCheckpoint}
@@ -270,10 +280,10 @@
         {#if catalog && catalog.checkpoints.length === 0}
           <span class="text-xs text-muted-foreground">{t('comfy.no_checkpoints')}</span>
         {/if}
-      </div>
+      </GenerationField>
     </div>
-    <div class="flex flex-col gap-1.5">
-      <Label for="comfy-prompt" class="text-sm font-semibold text-foreground">{t('img.prompt_label')}</Label>
+    <GenerationField label={t('img.prompt_label')} id="comfy-prompt" help="gen.prompt">
+
       <Textarea
         id="comfy-prompt"
         bind:value={form.prompt}
@@ -287,27 +297,30 @@
           }
         }}
       />
-    </div>
-    <AdvancedOnly collapsible invalid={sizeError}>
-      <div class="flex flex-col gap-1.5">
-        <Label for="comfy-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
+    </GenerationField>
+    <AdvancedOnly collapsible invalid={invalid}>
+      <GenerationField label={t('img.negative_label')} id="comfy-negative" help="gen.negative">
+
         <Input id="comfy-negative" bind:value={form.negative} placeholder={t('comfy.negative_placeholder')} disabled={busy} />
-      </div>
+      </GenerationField>
       <div class="grid gap-3 sm:grid-cols-4">
-        <Field label={t('img.size_label')} id="comfy-size" note={sizeError ? t('comfy.size_invalid') : t('comfy.workflow_default')}>
+        <Field label={t('img.size_label')} id="comfy-size" help="gen.comfy_size" note={sizeError ? t('comfy.size_invalid') : t('comfy.workflow_default')}>
           <Input id="comfy-size" bind:value={form.size} list="comfy-sizes" placeholder={t('comfy.workflow_value')} disabled={busy} aria-invalid={sizeError} />
           <datalist id="comfy-sizes">
             {#each SIZE_PRESETS as s (s)}<option value={s}></option>{/each}
           </datalist>
         </Field>
-        <Field label={t('img.steps_label')} id="comfy-steps">
-          <Input id="comfy-steps" bind:value={form.steps} inputmode="numeric" placeholder={t('comfy.workflow_value')} disabled={busy} />
+        <Field label={t('img.steps_label')} id="comfy-steps" help="gen.steps">
+          <Input id="comfy-steps" aria-invalid={validation.steps} bind:value={form.steps} inputmode="numeric" placeholder={t('comfy.workflow_value')} disabled={busy} />
+        {#if validation.steps}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_settings')}</p>{/if}
         </Field>
-        <Field label={t('img.seed_label')} id="comfy-seed" note={t('img.seed_note')}>
-          <Input id="comfy-seed" bind:value={form.seed} inputmode="numeric" placeholder={t('img.seed_random')} disabled={busy} />
+        <Field label={t('img.seed_label')} id="comfy-seed" help="gen.seed" note={t('img.seed_note')}>
+          <Input id="comfy-seed" aria-invalid={validation.seed} bind:value={form.seed} inputmode="numeric" placeholder={t('img.seed_random')} disabled={busy} />
+        {#if validation.seed}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_settings')}</p>{/if}
         </Field>
-        <Field label={t('img.cfg_label')} id="comfy-cfg">
-          <Input id="comfy-cfg" bind:value={form.cfgScale} inputmode="decimal" placeholder={t('comfy.workflow_value')} disabled={busy} />
+        <Field label={t('img.cfg_label')} id="comfy-cfg" help="gen.cfg">
+          <Input id="comfy-cfg" aria-invalid={validation.cfg} bind:value={form.cfgScale} inputmode="decimal" placeholder={t('comfy.workflow_value')} disabled={busy} />
+        {#if validation.cfg}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_settings')}</p>{/if}
         </Field>
       </div>
     </AdvancedOnly>

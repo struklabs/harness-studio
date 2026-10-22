@@ -1,5 +1,11 @@
 <script lang="ts">
-  import Field from '../dashboard/parts/Field.svelte';
+  import Field from './GenerationField.svelte';
+  import GenerationField from './GenerationField.svelte';
+  import QualityPresets from './QualityPresets.svelte';
+  import HelpPopover from '../common/HelpPopover.svelte';
+  import { generationPreset, imageParameterErrors, matchingEstimate, type GenerationEngine, type Quality } from './generationParameters';
+  import { generationError } from './generationError';
+  import { definitionFile } from './modelModes';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
@@ -16,7 +22,6 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import { familyFromError } from '#lib/engines.js';
   import { Input } from '#lib/components/ui/input/index.js';
-  import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { Compass, FolderOpen, Image as ImageIcon, ImagePlus, LoaderCircle, Maximize2, Paintbrush, Power, Save, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
@@ -34,7 +39,6 @@
     needsStartImage,
     takesLora,
     takesStrength,
-    parseSize,
     pngSize,
     MAX_START_IMAGE_BYTES,
     readStartImage,
@@ -76,13 +80,23 @@
     void domain.refreshDefinitions();
   });
 
-  let sizeError = $derived(form.size.trim() !== '' && !parseSize(form.size));
+  let mflux = $derived(isMflux(form.model, domain.definitions, library.models));
+  let selectedFile = $derived.by(() => { const d = domain.definitions.find(d => d.alias === form.model); return d ? definitionFile(d, library.models) : undefined; });
+  let engine = $derived<GenerationEngine>(mflux ? 'mflux' : selectedFile?.kind === 'pipeline' ? 'diffusers' : 'sdcpp');
+  let validation = $derived(imageParameterErrors(form, engine));
+  let sizeError = $derived(validation.size);
+  let invalid = $derived(Object.values(validation).some(Boolean));
+  let samples = $state<{ model: string; signature: string; ms: number }[]>([]);
+  let signature = $derived(JSON.stringify([form.steps, form.size, form.count, !!form.init, !!form.mask, form.lora, form.loraScale]));
+  let estimate = $derived(matchingEstimate(samples, form.model, signature));
+  function preset(quality: Quality) { const p = generationPreset('image', engine, quality, selectedFile?.name ?? form.model); form.steps = String(p.steps); form.size = p.size; form.count = 1; }
+  let initName = $state('');
+  let maskName = $state('');
   let strengthShown = $derived(takesStrength(form.model, domain.definitions, library.models));
   let strengthError = $derived(!!form.init && strengthShown && !strengthOk(form.strength));
   /** InstructPix2Pix, Qwen-Image-Edit...: they edit a start image and draw nothing from text alone. */
   let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
   /** mflux (FLUX.2 [klein], Z-Image, FLUX.1, Qwen-Image): no negative prompt or CFG; an empty size is the largest that fits. */
-  let mflux = $derived(isMflux(form.model, domain.definitions, library.models));
   /** What a mask does here: FLUX.1 Fill and inpainting checkpoints need one, text-to-image diffusers pipelines may take one. */
   let maskKind = $derived(maskMode(form.model, domain.definitions, library.models));
   let inpaints = $derived(maskKind !== 'none');
@@ -96,7 +110,7 @@
       app.gatewayRunning &&
       !!form.model &&
       form.prompt.trim() !== '' &&
-      !sizeError &&
+      !invalid &&
       !strengthError &&
       !loraError &&
       !loraScaleError &&
@@ -147,7 +161,7 @@
         const msg = e instanceof Error ? e.message : String(e);
         needFamily = familyFromError(msg);
         retryAction = () => void upscale(item, label);
-        error = needFamily ? '' : msg;
+        error = needFamily ? '' : generationError(e);
       }
     } finally {
       if (controller === c) controller = null;
@@ -164,7 +178,7 @@
     if (image === 'type') toast.error(t('img.init_bad_type'));
     else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
     else {
-      form.mask = image;
+      form.mask = image; maskName = file.name;
       drawingMask = false;
     }
   }
@@ -177,12 +191,12 @@
     const image = await readStartImage(file);
     if (image === 'type') toast.error(t('img.init_bad_type'));
     else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
-    else useAsStart(image);
+    else { useAsStart(image); initName = file.name; }
   }
 
   /** A start image sets the canvas: an older size would silently win over it. */
   function useAsStart(image: ImageResult) {
-    form.init = image;
+    form.init = image; initName = ''; maskName = '';
     form.size = '';
     form.mask = null;
     drawingMask = false;
@@ -194,6 +208,7 @@
     const c = new AbortController();
     controller = c;
     busy = true;
+    const runModel = form.model; const runSignature = signature;
     error = '';
     memoryBlocked = false;
     needFamily = null;
@@ -203,6 +218,7 @@
       const params = mflux ? { ...withLora, negative: '', cfgScale: '' } : withLora;
       const { images, ms } = await fetchImages(app.inferenceUrl, form.model, params, app.inferenceHeaders(), c.signal);
       lastMs = ms;
+      samples = [...samples.slice(-19), { model: runModel, signature: runSignature, ms }];
       addToGallery(
         images.map((image) => ({
           image,
@@ -224,7 +240,7 @@
         // The gateway passes the load failure through as raw keys; say what is missing instead.
         needFamily = familyFromError(msg);
         retryAction = () => void run();
-        error = needFamily ? '' : msg;
+        error = needFamily ? '' : generationError(e);
       }
     } finally {
       if (controller === c) {
@@ -303,9 +319,10 @@
   {/if}
 
   <section class="flex flex-col gap-3" aria-labelledby="img-input">
-    <h3 id="img-input" class="sr-only">{t('img.title')}</h3>
-    <div class="flex flex-col gap-1.5">
-      <Label for="img-model" class="text-sm font-semibold text-foreground">{t('img.model_label')}</Label>
+    <h3 id="img-input" class="text-sm font-semibold">{t('gen.basic')}</h3>
+    <QualityPresets onselect={preset} {busy} seconds={estimate} />
+    <GenerationField label={t('img.model_label')} id="img-model" help="gen.model">
+
       <select
         id="img-model"
         bind:value={form.model}
@@ -316,9 +333,9 @@
           <option value={d.alias}>{d.alias}</option>
         {/each}
       </select>
-    </div>
-    <div class="flex flex-col gap-1.5">
-      <Label for="img-prompt" class="text-sm font-semibold text-foreground">{t('img.prompt_label')}</Label>
+    </GenerationField>
+    <GenerationField label={t('img.prompt_label')} id="img-prompt" help="gen.prompt">
+
       <Textarea
         id="img-prompt"
         bind:value={form.prompt}
@@ -332,7 +349,7 @@
           }
         }}
       />
-    </div>
+    </GenerationField>
     {#if loraShown}
       <div class="flex flex-col gap-1.5">
         <span class="text-sm font-semibold text-foreground">{t('img.lora_label')}</span>
@@ -367,52 +384,62 @@
         </span>
       </div>
     {/if}
-    <AdvancedOnly collapsible invalid={sizeError}>
+    <AdvancedOnly collapsible invalid={invalid}>
     {#if !mflux}
-      <div class="flex flex-col gap-1.5">
-        <Label for="img-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
+      <GenerationField label={t('img.negative_label')} id="img-negative" help="gen.negative">
+
         <Input id="img-negative" bind:value={form.negative} placeholder={t('img.negative_placeholder')} disabled={busy} />
-      </div>
+      </GenerationField>
     {/if}
     <div class="grid gap-3 sm:grid-cols-4">
-      <Field label={t('img.size_label')} id="img-size" note={sizeError ? t('img.size_invalid') : t('img.size_note')}>
+      <Field label={t('img.size_label')} id="img-size" help={mflux ? 'gen.size_mflux' : 'gen.size'} note={undefined}>
         <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={form.init ? t('img.init_size') : t(mflux ? 'img.mflux_size' : 'img.model_size')} disabled={busy} aria-invalid={sizeError} />
+        {#if sizeError}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_size', { multiple: mflux ? 16 : 8, max: mflux ? 2048 : 4096 })}</p>{/if}
         <datalist id="img-sizes">
           {#each SIZE_PRESETS as s (s)}<option value={s}></option>{/each}
         </datalist>
       </Field>
-      <Field label={t('img.steps_label')} id="img-steps">
-        <Input id="img-steps" bind:value={form.steps} inputmode="numeric" placeholder={t('img.model_default')} disabled={busy} />
+      <Field label={t('img.steps_label')} id="img-steps" help="gen.steps">
+        <Input id="img-steps" aria-invalid={validation.steps} bind:value={form.steps} inputmode="numeric" placeholder={t('img.model_default')} disabled={busy} />
+
+        {#if validation.steps}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_number', { kind: t('gen.integer'), min: 1, max: mflux ? 50 : 500 })}</p>{/if}
       </Field>
-      <Field label={t('img.seed_label')} id="img-seed" note={t('img.seed_note')}>
-        <Input id="img-seed" bind:value={form.seed} inputmode="numeric" placeholder={t('img.seed_random')} disabled={busy} />
+      <Field label={t('img.seed_label')} id="img-seed" help="gen.seed" note={t('img.seed_note')}>
+        <Input id="img-seed" aria-invalid={validation.seed} bind:value={form.seed} inputmode="numeric" placeholder={t('img.seed_random')} disabled={busy} />
+
+        {#if validation.seed}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_number', { kind: t('gen.integer'), min: -1, max: mflux ? 4294967295 : Number.MAX_SAFE_INTEGER })}</p>{/if}
       </Field>
-      <Field label={t('img.count_label')} id="img-count">
-        <select id="img-count" bind:value={form.count} disabled={busy} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+      <Field label={t('img.count_label')} id="img-count" help="gen.count">
+        <select id="img-count" aria-invalid={validation.count} bind:value={form.count} disabled={busy} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n}</option>{/each}
         </select>
+
+        {#if validation.count}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_number', { kind: t('gen.integer'), min: 1, max: mflux ? 4 : 8 })}</p>{/if}
       </Field>
     </div>
     {#if !mflux}
         <div class="grid gap-3 sm:grid-cols-4">
-          <Field label={t('img.cfg_label')} id="img-cfg" note={t('img.cfg_note')}>
-            <Input id="img-cfg" bind:value={form.cfgScale} inputmode="decimal" placeholder={t('img.model_default')} disabled={busy} />
-          </Field>
+          <Field label={t('img.cfg_label')} id="img-cfg" help="gen.cfg" note={t('img.cfg_note')}>
+            <Input id="img-cfg" aria-invalid={validation.cfg} bind:value={form.cfgScale} inputmode="decimal" placeholder={t('img.model_default')} disabled={busy} />
+
+        {#if validation.cfg}<p class="text-xs text-destructive" role="alert">{t('gen.invalid_number', { kind: t('gen.number'), min: 0, max: 100 })}</p>{/if}
+      </Field>
         </div>
     {/if}
     </AdvancedOnly>
     <div class="flex flex-col gap-1.5">
-      <span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span>
+      <div class="flex items-center gap-1"><span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span><HelpPopover label={t('img.init_label')} text={t('gen.start_image')} /></div><p class="text-xs text-muted-foreground">{t('gen.start_image')}</p>
+      {#if initName}<p class="break-all text-xs text-muted-foreground">{initName}</p>{/if}
       <input bind:this={fileInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickStartImage} />
       {#if form.init}
         <div class="flex flex-wrap items-end gap-3">
           <img src={dataUrl(form.init)} alt={t('img.init_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
           {#if strengthShown}
-            <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
+            <Field label={t('img.strength_label')} id="img-strength" help="gen.strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
               <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
             </Field>
           {/if}
-          <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
+          <Button variant="ghost" size="sm" disabled={busy} onclick={() => { form.init = null; initName = ''; form.mask = null; maskName = ''; }}><X />{t('img.init_remove')}</Button>
           {#if form.upscaleModel}
             <Button variant="outline" size="sm" disabled={busy || upscaling || !app.gatewayRunning} onclick={() => form.init && upscale(form.init, t('img.upscale_label'))} title={t('img.upscale_hint')}>
               {#if upscaling}<LoaderCircle class="animate-spin" />{:else}<Maximize2 />{/if}{t('img.upscale')}
@@ -420,6 +447,8 @@
           {/if}
         </div>
         {#if inpaints}
+          <div class="flex items-center gap-1"><span class="text-sm font-medium">{t('img.mask_label')}</span><HelpPopover label={t('img.mask_label')} text={t('gen.mask')} /></div><p class="text-xs text-muted-foreground">{t('gen.mask')}</p>
+          {#if maskName}<p class="break-all text-xs text-muted-foreground">{maskName}</p>{/if}
           <input bind:this={maskInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickMask} />
           {#if drawingMask}
             <MaskEditor
@@ -435,7 +464,7 @@
               {#if form.mask}
                 <img src={dataUrl(form.mask)} alt={t('img.mask_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
                 <Button variant="outline" size="sm" disabled={busy} onclick={() => (drawingMask = true)}><Paintbrush />{t('img.mask_draw')}</Button>
-                <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.mask = null)}><X />{t('img.mask_remove')}</Button>
+                <Button variant="ghost" size="sm" disabled={busy} onclick={() => { form.mask = null; maskName = ''; }}><X />{t('img.mask_remove')}</Button>
               {:else}
                 <Button variant="outline" size="sm" disabled={busy} onclick={() => (drawingMask = true)}><Paintbrush />{t('img.mask_draw')}</Button>
                 <Button variant="outline" size="sm" disabled={busy} onclick={() => maskInput?.click()}><ImagePlus />{t('img.mask_pick')}</Button>
@@ -492,8 +521,8 @@
       {/if}
     </div>
     {#if upscalers.length > 0}
-      <div class="flex flex-wrap items-center gap-2">
-        <Label for="img-upscaler" class="text-xs text-muted-foreground">{t('img.upscale_model')}</Label>
+      <GenerationField label={t('img.upscale_model')} id="img-upscaler" help="gen.upscale">
+
         <select
           id="img-upscaler"
           bind:value={form.upscaleModel}
@@ -504,7 +533,7 @@
             <option value={d.alias}>{d.alias}</option>
           {/each}
         </select>
-      </div>
+      </GenerationField>
     {:else if form.gallery.length > 0}
       <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>{t('img.upscale_none')}</span>
